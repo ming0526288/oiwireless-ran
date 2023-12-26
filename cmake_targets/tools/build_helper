@@ -663,6 +663,7 @@ check_install_oai_software() {
 
     install_asn1c_from_source $1
     install_simde_from_source $1
+    install_oxgrf_from_source $1
 }
 
 install_asn1c_from_source(){
@@ -673,7 +674,9 @@ install_asn1c_from_source(){
     $SUDO $INSTALLER -y install bison flex
     $SUDO rm -rf /tmp/asn1c
     # GIT_SSL_NO_VERIFY=true git clone https://gitlab.eurecom.fr/oai/asn1c.git /tmp/asn1c
-    git clone https://github.com/mouse07410/asn1c /tmp/asn1c
+    #git clone https://github.com/mouse07410/asn1c /tmp/asn1c
+    sudo wget -c http://www.opensource5g.org:19780/share/oai/libs/asn1/24w24b/asn1c.tar.gz -P /tmp/
+    tar -zxvf /tmp/asn1c.tar.gz -C /tmp
     cd /tmp/asn1c
     #git checkout vlm_master
     # hotfix: current vlm_master (5fa129cf3161da9ff2d67341e6277e818c0f5d6a)
@@ -697,7 +700,9 @@ install_simde_from_source(){
     echo_info "\nInstalling SIMDE from source without test cases (header files only)"
     cd /tmp
     $SUDO rm -rf /tmp/simde
-    git clone https://github.com/simd-everywhere/simde-no-tests.git /tmp/simde
+    #git clone https://github.com/simd-everywhere/simde-no-tests.git /tmp/simde
+    sudo wget -c http://www.opensource5g.org:19780/share/oai/libs/simde.tar.gz -P /tmp/
+    tar -zxvf /tmp/simde.tar.gz -C /tmp 
     cd /tmp/simde
     # we can specify a given version of SIMDE (sha-one or tag)
     if [[ -v SIMDE_VERSION ]]; then
@@ -801,6 +806,25 @@ install_lttng_tools_2_13_from_source() {
     make &&
     $SUDO make install &&
     $SUDO ldconfig
+}
+
+install_oxgrf_from_source(){
+    echo_info "\nInstalling OXGRF from source without test cases (header files only)"
+    if [ ! -f /usr/local/include/oxgrf_api_ss.h ]; then
+   cp $OPENAIR_DIR/radio/OXGRF/oxgrf_api_ss.h /usr/local/include
+   $SUDO chmod +x /usr/local/include/oxgrf_api_ss.h
+   echo "oxgrf_api_ss.h installed successfully"
+   else
+   echo "oxgrf_api_ss.h is already existed"
+fi
+if [ ! -f /usr/local/include/liboxgrf_ss.so ]; then
+   cp $OPENAIR_DIR/radio/OXGRF/liboxgrf_ss.so /usr/local/lib
+   $SUDO chmod +x /usr/local/lib/liboxgrf_ss.so
+   $SUDO ldconfig /usr/local/lib
+   echo "liboxgrf_ss.so installed successfully"
+   else
+   echo "liboxgrf_ss.so is already existed"
+fi
 }
 
 #################################################
