@@ -93,7 +93,7 @@ Options:
 --UE-gen-nvram [output path]
    Specify gen_nvram_path (default \"$gen_nvram_path\")
 -w | --hardware
-   USRP, BLADERF, LMSSDR, IRIS, SIMU, AW2SORI, AERIAL, None (Default)
+   USRP, BLADERF, LMSSDR, IRIS, SIMU, AW2SORI, OXGRF, AERIAL, None (Default)
    Adds this RF board support (in external packages installation and in compilation)
 -t | --transport
    Selects the transport protocol type, options: None, Ethernet, benetel4g, benetel5g, oran_fhlib_5g
@@ -276,7 +276,7 @@ function main() {
             shift;;
        -w | --hardware)
             case "$2" in
-                "USRP" | "BLADERF" | "LMSSDR" | "IRIS")
+                "USRP" | "BLADERF" | "LMSSDR" | "IRIS" | "OXGRF")
                     HW="OAI_"$2
                     TARGET_LIST="$TARGET_LIST oai_${2,,}devif" # ,, makes lowercase
                     CMAKE_CMD="$CMAKE_CMD -DOAI_$2=ON"
@@ -477,6 +477,10 @@ function main() {
       if [ ! "$DISABLE_HARDWARE_DEPENDENCY" == "True" ]; then
         flash_firmware_bladerf
       fi
+    fi
+    if [ "$HW" == "OAI_OXGRF" ] ; then
+      echo_info "installing packages for OXGRF support"
+      #check_install_oxgrf_driver
     fi
     if [ "$HW" == "OAI_IRIS" ] ; then
       echo_info "installing packages for IRIS support"

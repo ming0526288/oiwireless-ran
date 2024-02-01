@@ -34,6 +34,7 @@
 // clang-format off
 #define CMDLINE_NRUEPARAMS_DESC {  \
   {"usrp-args",                CONFIG_HLP_USRP_ARGS,           0,               .strptr=&usrp_args,                       .defstrval="type=b200",          TYPE_STRING,   0}, \
+  {"oxgrf-args",              CONFIG_HLP_OXGRF_ARGS,         0,               .strptr=&oxgrf_args,                     .defstrval="dev=pciex:0",        TYPE_STRING,   0}, \
   {"tx_subdev",                CONFIG_HLP_TX_SUBDEV,           0,               .strptr=&tx_subdev,                       .defstrval=NULL,                 TYPE_STRING,   0}, \
   {"rx_subdev",                CONFIG_HLP_RX_SUBDEV,           0,               .strptr=&rx_subdev,                       .defstrval=NULL,                 TYPE_STRING,   0}, \
   {"dlsch-parallel",           CONFIG_HLP_DLSCH_PARA,          0,               .u8ptr=NULL,                              .defintval=0,                    TYPE_UINT8,    0}, \

@@ -37,3 +37,8 @@ add_boolean_option(OAI_USRP OFF "Activate OAI's USRP driver" OFF)
 if(OAI_USRP)
   add_subdirectory(USRP)
 endif()
+
+add_boolean_option(OAI_OXGRF OFF "Activate OAI's OXGRF driver" OFF)
+if(OAI_OXGRF)
+  add_subdirectory(OXGRF)
+endif()

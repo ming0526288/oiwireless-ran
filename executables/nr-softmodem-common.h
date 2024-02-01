@@ -97,6 +97,8 @@
 #define CONFIG_HLP_TX_SUBDEV     "set the arguments to select tx_subdev (same syntax as in UHD)\n"
 #define CONFIG_HLP_RX_SUBDEV     "set the arguments to select rx_subdev (same syntax as in UHD)\n"
 
+#define CONFIG_HLP_OXGRF_ARGS   "set the arguments to identify OXGRF\n"
+
 #define CONFIG_HLP_FLOG          "Enable online log \n"
 #define CONFIG_HLP_LOGL          "Set the global log level, valid options: (4:trace, 3:debug, 2:info, 1:warn, (0:error))\n"
 #define CONFIG_HLP_LOGV          "Set the global log verbosity \n"
