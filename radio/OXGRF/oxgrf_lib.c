@@ -589,7 +589,7 @@ int device_init(openair0_device *device, openair0_config_t *openair0_cfg) {
         LOG_I(HW, "[oxgrf] device type: IQX%d(Split Mode)\n", model - 2);
     } else if(model == 6000 || model == 7000 || model == 7100) {
         oxgrf->BoardType = IQX7000;
-        shift = 4;
+        shift = 2;
         LOG_I(HW, "[oxgrf] device type: IQX%d\n", model);
     } else {
         oxgrf->BoardType = UNKNOWN;
