@@ -469,6 +469,20 @@ int nr_rx_pdsch(PHY_VARS_NR_UE *ue,
                          dlsch_config->dlDmrsSymbPos,
                          csi_res_bitmap,
                          ue->chest_time);
+
+   if ((pilots == 0) && (first_symbol_flag == 1))
+   {
+    static int cnt = 0;
+    if ((cnt %1024) == 0)
+    {
+     unsigned int pdsch_amp;
+     pdsch_amp = cal_amp((int16_t *)&rxdataF_ext[0][0], nb_rb_pdsch * 12);
+     LOG_I(PHY, "frame %d %d, symbol %d pdsch_amp %d, rb %d, symbols %d rnti %d, mcs %d , tbs %d\n", 
+     frame, nr_slot_rx, symbol, pdsch_amp, nb_rb_pdsch, dlsch[0].dlsch_config.number_symbols, dlsch[0].rnti, dlsch[0].dlsch_config.mcs, dlsch[0].dlsch_config.TBS);
+    }
+    cnt++;
+   } 
+
     if (meas_enabled) {
       stop_meas(&meas);
       LOG_D(PHY,

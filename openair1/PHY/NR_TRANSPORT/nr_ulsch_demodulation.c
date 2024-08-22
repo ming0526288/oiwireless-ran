@@ -1297,6 +1297,22 @@ static void inner_rx(PHY_VARS_gNB *gNB,
                             frame_parms);
     }
   }
+
+      unsigned int pusch_amp;
+      if (symbol == (rel15_ul->start_symbol_index + rel15_ul->nr_of_symbols - 1)) {
+        static int cnt = 0;
+        //if (((cnt & 0x7F) == 0) || (cnt < 0x80))
+        //if ( (cnt < 0x100))
+        if (((cnt & 0xFF) == 0) )
+        {
+          pusch_amp = cal_amp(&rxFext[0][0], rel15_ul->rb_size * NR_NB_SC_PER_RB);
+          //LOG_I(PHY, "UL AMP frame %d %d, symbol %d, rbs %d, res %d, time %d, freq %d \n", frame, slot, symbol, nb_re_pusch/12, nb_re_pusch, g_ul_time_amp[symbol], g_ul_freq_amp[symbol], pusch_amp);
+          LOG_I(PHY, "UL AMP frame %d %d, symbols %d, rbs %d, mcs %d, pusch amp %d \n", 0, slot, rel15_ul->nr_of_symbols, rel15_ul->rb_size, rel15_ul->mcs_index, pusch_amp);
+
+        }
+        cnt++;
+      }
+      
   c16_t rho[nb_layer][nb_layer][buffer_length] __attribute__((aligned(32)));
   c16_t rxF_ch_maga  [nb_layer][buffer_length] __attribute__((aligned(32)));
   c16_t rxF_ch_magb  [nb_layer][buffer_length] __attribute__((aligned(32)));

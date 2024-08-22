@@ -40,6 +40,7 @@
 \param no_prefix if 1 prefix is removed by HW
 \param reset_freq_est if non-zero it resets the frequency offset estimation loop
 */
+uint cal_amp(int16_t *dataIn, int len);
 
 int slot_fep(PHY_VARS_UE *phy_vars_ue,
              unsigned char l,

@@ -88,6 +88,11 @@ size_t dump_mac_stats(gNB_MAC_INST *gNB, char *output, size_t strlen, bool reset
   const char *begin = output;
   const char *end = output + strlen;
 
+  static uint64_t  dl_bytes_old = 0;
+  static uint64_t  ul_bytes_old = 0;
+  uint64_t  dl_bytes_new = 0;
+  uint64_t  ul_bytes_new = 0;
+
   /* this function is called from gNB_dlsch_ulsch_scheduler(), so assumes the
    * scheduler to be locked*/
   NR_SCHED_ENSURE_LOCKED(&gNB->sched_lock);
@@ -97,6 +102,9 @@ size_t dump_mac_stats(gNB_MAC_INST *gNB, char *output, size_t strlen, bool reset
     NR_UE_sched_ctrl_t *sched_ctrl = &UE->UE_sched_ctrl;
     NR_mac_stats_t *stats = &UE->mac_stats;
     const int avg_rsrp = stats->num_rsrp_meas > 0 ? stats->cumul_rsrp / stats->num_rsrp_meas : 0;
+
+    dl_bytes_new =  stats->dl.total_bytes;
+    ul_bytes_new =  stats->ul.total_bytes;
 
     output += snprintf(output, end - output, "UE RNTI %04x CU-UE-ID ", UE->rnti);
     if (du_exists_f1_ue_data(UE->rnti)) {
@@ -145,7 +153,18 @@ size_t dump_mac_stats(gNB_MAC_INST *gNB, char *output, size_t strlen, bool reset
                        sched_ctrl->dl_bler_stats.bler,
                        UE->current_DL_BWP.mcsTableIdx,
                        sched_ctrl->dl_bler_stats.mcs);
+  
+  output += snprintf(output,
+                       end - output,
+                       "UE %04x: dl thoughtput %"PRIu64" kbps, dl_bytes_old %"PRIu64 "dl_bytes_new %"PRIu64 "\n",
+                       UE->rnti, (uint64_t)((dl_bytes_new - dl_bytes_old) * 25 / 4000), dl_bytes_old, dl_bytes_new);
+  output += snprintf(output,
+                       end - output,
+                       "UE %04x: ul thoughtput %"PRIu64" kbps, ul_bytes_old %"PRIu64 "ul_bytes_new %"PRIu64 "\n",
+                       UE->rnti, (uint64_t)((ul_bytes_new - ul_bytes_old) * 25 / 4000), ul_bytes_old, ul_bytes_new);                       
     if (reset_rsrp) {
+      dl_bytes_old = dl_bytes_new;   
+      ul_bytes_old = ul_bytes_new;    
       stats->num_rsrp_meas = 0;
       stats->cumul_rsrp = 0;
     }

@@ -34,6 +34,18 @@
 #define LOG_I(A,B...) printf(A)
 #endif*/
 
+uint cal_amp(int16_t *dataIn, int len)
+{
+	int i;
+	uint sumA = 0;
+	for(i=0;i<len;i++)
+	{
+		sumA += abs(dataIn[i]);
+	}
+  sumA = sumA/len;
+	return sumA;
+}
+
 int sl_nr_slot_fep(PHY_VARS_NR_UE *ue,
                    UE_nr_rxtx_proc_t *proc,
                    unsigned char symbol,

@@ -95,6 +95,7 @@ typedef enum {
   BLADERF_DEV,
   /*!\brief device is OXGRF pcie*/
   OXGRF_DEV,
+  DPDKRF_DEV,
   /*!\brief device is LMSSDR (SoDeRa)*/
   LMSSDR_DEV,
   /*!\brief device is Iris */

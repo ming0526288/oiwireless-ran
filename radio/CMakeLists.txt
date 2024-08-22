@@ -42,3 +42,8 @@ add_boolean_option(OAI_OXGRF OFF "Activate OAI's OXGRF driver" OFF)
 if(OAI_OXGRF)
   add_subdirectory(OXGRF)
 endif()
+
+add_boolean_option(OAI_DPDKRF OFF "Activate OAI's DPDKRF driver" OFF)
+if(OAI_DPDKRF)
+  add_subdirectory(DPDKRF)
+endif()
