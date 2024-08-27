@@ -147,6 +147,11 @@ void init_nr_ue_vars(PHY_VARS_NR_UE *ue, uint8_t UE_id)
   ue->dci_thres   = 0;
   ue->target_Nid_cell = -1;
   ue->timing_advance = ue->frame_parms.samples_per_subframe * get_nrUE_params()->ntn_ta_common;
+   
+  LOG_I(PHY, "samples_per_subframe %d, timing_advance %d, ntn_ta_common %f\n",
+  ue->frame_parms.samples_per_subframe,
+  ue->timing_advance,
+  get_nrUE_params()->ntn_ta_common);
 
   // initialize all signal buffers
   init_nr_ue_signal(ue, nb_connected_gNB);
@@ -443,9 +448,9 @@ static void RU_write(nr_rxtx_thread_data_t *rxtxD, bool sl_tx_action)
 
   int tmp = openair0_write_reorder(&UE->rfdevice, proc->timestamp_tx, txp, rxtxD->writeBlockSize, fp->nb_antennas_tx, flags);
   AssertFatal(tmp == rxtxD->writeBlockSize, "");
-
+ 
   for (int i = 0; i < UE->frame_parms.nb_antennas_tx; i++)
-    txp[i] = (void *)&UE->common_vars.txData[i][UE->frame_parms.get_samples_slot_timestamp((slot+10)%20, &UE->frame_parms, 0)];
+    txp[i] = (void *)&UE->common_vars.txData[i][UE->frame_parms.get_samples_slot_timestamp((slot+UE->frame_parms.slots_per_frame/2)%UE->frame_parms.slots_per_frame, &UE->frame_parms, 0)];
 
   for (int i = 0; i < fp->nb_antennas_tx; i++)
     memset(txp[i], 0, rxtxD->writeBlockSize*4);
