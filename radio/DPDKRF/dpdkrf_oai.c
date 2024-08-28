@@ -75,9 +75,8 @@ int32_t test_dpdkrf_write (openair0_device *device,openair0_timestamp timestamp,
 	for (int i = 0; i < cc; i++)
 	{
 		buff[i] = buff1[i];
-        for(int j = 0; j < cc; j++) {
             int len = nsamps * 2;
-            int16_t *iq = buff[j];
+            int16_t *iq = buff[i];
     #if defined(__x86_64) || defined(__i386__)
             __m256i a, *b;
 
@@ -105,7 +104,6 @@ int32_t test_dpdkrf_write (openair0_device *device,openair0_timestamp timestamp,
                 iq++;
                 len--;
             }
-        }
 	}
 	for (int i = cc; i < 4; i++)
 	{
