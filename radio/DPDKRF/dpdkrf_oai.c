@@ -123,7 +123,7 @@ int trx_dpdkrf_start(openair0_device *device) {
 	//	txpCtrlgain[i] = (uint8_t *)gTxCtrlBuf;
 	//}
 	LOG_I(HW, "[dpdkrf] Start dpdkrf ...\n");
-
+    sleep(2);
     openair0_cfg = device->openair0_cfg;
 #if 1
 	dpdk_device_start(3, 5000, openair0_cfg->tx_num_channels, openair0_cfg->rx_num_channels);
@@ -205,6 +205,23 @@ int trx_dpdkrf_set_gains(openair0_device* device, openair0_config_t *openair0_cf
 }
 
 
+void *dpdk_init(void *arg) {
+    printf("This is a new thread.\n");
+	int argc = 3;
+    char *argv[3];
+    argv[0] = "modem";
+    argv[1] = "-c";
+    argv[2] = "0x1E";
+	if (rte_eal_init(argc,argv) < 0) {
+		rte_exit(EXIT_FAILURE, "Error with EAL init\n");
+	}
+
+    while(1)
+        sleep(100);
+
+    return NULL;
+}
+
 int device_init(openair0_device *device, openair0_config_t *openair0_cfg) {
 
     dpdkrf_state_t *dpdkrf = (dpdkrf_state_t*)malloc(sizeof(dpdkrf_state_t));
@@ -269,12 +286,16 @@ int device_init(openair0_device *device, openair0_config_t *openair0_cfg) {
 		gTxCtrlBuf[i] = i;
 
 
-	char *arg[1] = {"./nr-softmodem"};
-	if (rte_eal_init(1,arg) < 0) {
-		rte_exit(EXIT_FAILURE, "Error with EAL init\n");
-	}
+    pthread_t thread_id;
+    int ret;
 
-	
+    ret = pthread_create(&thread_id, NULL, dpdk_init, NULL);
+    if (ret!= 0) {
+        fprintf(stderr, "Error creating thread dpdk_init.\n");
+        return 1;
+    }
+    ret = rte_thread_setname(thread_id,"rte_telemetry");	
+
     device->Mod_id               = num_devices++;
     device->type                 = DPDKRF_DEV;
     device->trx_start_func       = trx_dpdkrf_start;
