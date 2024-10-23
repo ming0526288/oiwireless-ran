@@ -449,9 +449,6 @@ static void RU_write(nr_rxtx_thread_data_t *rxtxD, bool sl_tx_action)
   int tmp = openair0_write_reorder(&UE->rfdevice, proc->timestamp_tx, txp, rxtxD->writeBlockSize, fp->nb_antennas_tx, flags);
   AssertFatal(tmp == rxtxD->writeBlockSize, "");
  
-  for (int i = 0; i < UE->frame_parms.nb_antennas_tx; i++)
-    txp[i] = (void *)&UE->common_vars.txData[i][UE->frame_parms.get_samples_slot_timestamp((slot+UE->frame_parms.slots_per_frame/2)%UE->frame_parms.slots_per_frame, &UE->frame_parms, 0)];
-
   for (int i = 0; i < fp->nb_antennas_tx; i++)
     memset(txp[i], 0, rxtxD->writeBlockSize*4);
 }

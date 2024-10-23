@@ -30,7 +30,7 @@
 #include <sys/time.h>
 #include <math.h>
 #include "dpdkrf_oai.h"
-#include "dpdkrf_lib.h"
+#include "dpdkrf_if.h"
 #include "common/utils/LOG/log.h"
 #include "common/utils/LOG/vcd_signal_dumper.h"
 #define SAMPLE_PER_PACKAGE 960
@@ -126,7 +126,7 @@ int trx_dpdkrf_start(openair0_device *device) {
     sleep(2);
     openair0_cfg = device->openair0_cfg;
 #if 1
-	dpdk_device_start(3, 5000, openair0_cfg->tx_num_channels, openair0_cfg->rx_num_channels);
+	dpdk_device_start(3,4, 5000, openair0_cfg->tx_num_channels, openair0_cfg->rx_num_channels);
     //printf("tx txbase %p, txbase[0] %p, &txbase[0][0] %p,  rx addr %p ,rxbase[0] %p, &rxbase[0][0] %p\n", 
     //openair0_cfg->txbase, 
     //openair0_cfg->txbase[0],
