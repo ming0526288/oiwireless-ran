@@ -145,12 +145,12 @@ int trx_dpdkrf_start(openair0_device *device) {
     int64_t txgetfreq, rxgetfreq;
     while(1)
     {
-        int ret = trx_dpdkrf_getFreq(&txgetfreq, &rxgetfreq, 0);
+        int ret = trx_dpdkrf_getFreq( &rxgetfreq, &txgetfreq, 0);
         if (ret == 0)
            break;
         sleep(1);   
     }
-    printf("get freq = %ld %ld\n\n",rxgetfreq, txgetfreq);
+    printf("get freq = rx %ld tx: %ld\n\n",rxgetfreq, txgetfreq);
 
     //trx_dpdkrf_setFreq(3349381000, 3349381000, 0);
     

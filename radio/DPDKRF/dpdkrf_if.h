@@ -31,8 +31,8 @@ int32_t trx_dpdkrf_write(uint8_t **buff, int nsamps, uint64_t timestamp, int cc)
 
 void trx_dpdkrf_gainRx(int g1, int g2, int g3, int g4, int op);
 void trx_dpdkrf_gainTx(int g1, int g2, int g3, int g4, int op);
-void trx_dpdkrf_setFreq(int64_t freqTx, int64_t freqRx, int op);
-int trx_dpdkrf_getFreq(int64_t * freqTx, int64_t * freqRx, int op);
+void trx_dpdkrf_setFreq(int64_t freqRx, int64_t freqTx, int op);
+int trx_dpdkrf_getFreq(int64_t * freqRx, int64_t * freqTx, int op);
 void trx_dpdkrf_getInfo(int op);
 void trx_dpdkrf_setOsc(int Oscoffset, int op);
 #endif // DPDKRF_IF_H
