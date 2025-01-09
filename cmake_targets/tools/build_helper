@@ -664,6 +664,7 @@ check_install_oai_software() {
     install_asn1c_from_source $1
     install_simde_from_source $1
     install_oxgrf_from_source $1
+    install_dpdkrf_from_source $1
 }
 
 install_asn1c_from_source(){
@@ -824,6 +825,25 @@ if [ ! -f /usr/local/include/liboxgrf_ss.so ]; then
    echo "liboxgrf_ss.so installed successfully"
    else
    echo "liboxgrf_ss.so is already existed"
+fi
+}
+
+install_dpdkrf_from_source(){
+    echo_info "\nInstalling OXGRF from source without test cases (header files only)"
+    if [ ! -f /usr/local/include/dpdkrf_if.h ]; then
+   cp $OPENAIR_DIR/radio/DPDKRF/dpdkrf_if.h /usr/local/include
+   $SUDO chmod +x /usr/local/include/dpdkrf_if.h
+   echo "dpdkrf_if.h installed successfully"
+   else
+   echo "dpdkrf_if.h is already existed"
+fi
+if [ ! -f /usr/local/include/dpdkrf_if.so ]; then
+   cp $OPENAIR_DIR/radio/DPDKRF/libdpdkrf.so /usr/local/lib
+   $SUDO chmod +x /usr/local/lib/libdpdkrf.so
+   $SUDO ldconfig /usr/local/lib
+   echo "libdpdkrf.so installed successfully"
+   else
+   echo "libdpdkrf.so is already existed"
 fi
 }
 
