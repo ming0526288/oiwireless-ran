@@ -829,7 +829,7 @@ fi
 }
 
 install_dpdkrf_from_source(){
-    echo_info "\nInstalling OXGRF from source without test cases (header files only)"
+    echo_info "\nInstalling DPDKRF from source without test cases (header files only)"
     if [ ! -f /usr/local/include/dpdkrf_if.h ]; then
    cp $OPENAIR_DIR/radio/DPDKRF/dpdkrf_if.h /usr/local/include
    $SUDO chmod +x /usr/local/include/dpdkrf_if.h
@@ -837,7 +837,7 @@ install_dpdkrf_from_source(){
    else
    echo "dpdkrf_if.h is already existed"
 fi
-if [ ! -f /usr/local/include/dpdkrf_if.so ]; then
+if [ ! -f /usr/local/include/libdpdkrf.so ]; then
    cp $OPENAIR_DIR/radio/DPDKRF/libdpdkrf.so /usr/local/lib
    $SUDO chmod +x /usr/local/lib/libdpdkrf.so
    $SUDO ldconfig /usr/local/lib
