@@ -93,7 +93,7 @@
  * By example, for LTE, subframe processing is spread over 4 different threads.
  *
  */
-
+int g_resync = 0;
 static void *NRUE_phy_stub_standalone_pnf_task(void *arg);
 
 static size_t dump_L1_UE_meas_stats(PHY_VARS_NR_UE *ue, char *output, size_t max_len)
@@ -353,6 +353,7 @@ typedef struct {
   int rx_offset;
 } syncData_t;
 
+int trashed_frames;
 static void UE_synch(void *arg) {
   syncData_t *syncD = (syncData_t *)arg;
   PHY_VARS_NR_UE *UE = syncD->UE;
@@ -398,8 +399,28 @@ static void UE_synch(void *arg) {
           openair0_cfg[UE->rf_map.card].rx_freq[0],
           openair0_cfg[UE->rf_map.card].tx_freq[0]);
 
-    UE->rfdevice.trx_set_freq_func(&UE->rfdevice, &openair0_cfg[0]);
-    UE->is_synchronized = 1;
+    
+    LOG_I(PHY,"ret.frame_id %d, trashed_frames %d\n", ret.frame_id, trashed_frames);
+    if(trashed_frames > 30)
+    {
+        if (ret.frame_id == 1)
+        {
+          g_resync = 2;
+        }
+        else
+        {
+            g_resync = 1;
+        }
+        UE->is_synchronized = 0;
+        LOG_I(PHY,"g_resync %d, trashed_frames %d\n", g_resync, trashed_frames);
+    }
+    else 
+    {
+        nr_rf_card_config_freq(&openair0_cfg[UE->rf_map.card], ul_carrier, dl_carrier, freq_offset);
+        UE->rfdevice.trx_set_freq_func(&UE->rfdevice, &openair0_cfg[0]);
+        g_resync = 0;
+        UE->is_synchronized = 1;     
+    }
   }
 }
 
@@ -776,7 +797,7 @@ void *UE_thread(void *arg)
 
   bool syncRunning = false;
   const int nb_slot_frame = fp->slots_per_frame;
-  int absolute_slot = 0, decoded_frame_rx = INT_MAX, trashed_frames = 0;
+  int absolute_slot = 0, decoded_frame_rx = INT_MAX;
   int tx_wait_for_dlsch[NR_MAX_SLOTS_PER_FRAME];
 
   int num_ind_fifo = nb_slot_frame;

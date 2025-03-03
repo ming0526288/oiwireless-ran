@@ -49,6 +49,8 @@
 #include "PHY/NR_UE_TRANSPORT/cic_filter_nr.h"
 
 //#define DBG_PSS_NR
+int g_peak_position[2] = {-1,-1};
+extern int g_resync;
 static time_stats_t generic_time[TIME_LAST];
 static int pss_search_time_nr(const c16_t **rxdata,
                               const NR_DL_FRAME_PARMS *frame_parms,
@@ -559,8 +561,19 @@ static int pss_search_time_nr(const c16_t **rxdata,
     pss_index_end = pss_index_start + 1;
   }
 
+  int start = 0;
+  LOG_I(PHY, "is %d, g_peak_position[is] %d, len %d\n", is, g_peak_position[is], length );
+  if ((g_resync > 0 ) && (g_peak_position[is]>-1))
+  {
+    if (g_peak_position[is] > 1000)
+    {
+      start = g_peak_position[is] - 1000;
+      LOG_I(PHY, "is %d, g_peak_position[is] %d, len %d\n", is, g_peak_position[is], length );
+    }
+    length = 2000;
+  }
   for (int pss_index = pss_index_start; pss_index < pss_index_end; pss_index++) {
-    for (n = 0; n < length; n += 4) { //
+   for (n = start; n < start + length; n += 4) { //
 
       int64_t pss_corr_ue=0;
       /* calculate dot product of primary_synchro_time_nr and rxdata[ar][n]
@@ -641,8 +654,10 @@ static int pss_search_time_nr(const c16_t **rxdata,
         ffo_est);
 
   if (peak_value < 5*avg[pss_source])
+  {
+    g_peak_position[is] = -1; 
     return(-1);
-
+  }
 
 #ifdef DBG_PSS_NR
 
@@ -658,7 +673,7 @@ static int pss_search_time_nr(const c16_t **rxdata,
   }
 
 #endif
-
+  g_peak_position[is] = peak_position;
   return peak_position;
 }
 

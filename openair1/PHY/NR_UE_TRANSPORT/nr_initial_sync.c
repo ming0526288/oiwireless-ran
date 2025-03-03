@@ -49,7 +49,7 @@
 
 //#define DEBUG_INITIAL_SYNCH
 #define DUMP_PBCH_CH_ESTIMATES 0
-
+extern int g_resync;
 // structure used for multiple SSB detection
 typedef struct NR_UE_SSB {
   uint i_ssb; // i_ssb between 0 and 7 (it corresponds to ssb_index only for Lmax=4,8)
@@ -202,6 +202,12 @@ void nr_scan_ssb(void *arg)
   // only one frame is used for simulation tools
   for (int frame_id = 0; frame_id < ssbInfo->nFrames && !ssbInfo->syncRes.cell_detected; frame_id++) {
     /* process pss search on received buffer */
+    if ((g_resync == 2) &&  (frame_id == 0))   
+    {
+      LOG_I(PHY, "g_resync, skip frame 0\n");
+      continue;
+    }
+    LOG_I(PHY, "g_resync %d, frame %d\n",  g_resync, frame_id);
     ssbInfo->syncRes.frame_id = frame_id;
     int nid2;
     int freq_offset_pss;
