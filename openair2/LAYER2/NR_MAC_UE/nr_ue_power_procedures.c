@@ -192,8 +192,8 @@ float nr_get_Pcmax(int p_Max,
     int delta_T_IB = 0;
 
     // TODO in case of band 41 and PRB allocation within 4MHz of the upper or lower limit of the band -> delta_TC = 1.5
-    if (nr_band == 41)
-      LOG_E(NR_MAC, "Need to implement delta_TC for band 41\n");
+    //if (nr_band == 41)
+    //  LOG_E(NR_MAC, "Need to implement delta_TC for band 41\n");
     int delta_TC = 0;
 
     float MPR = get_mpr(Qm, N_RB_UL, is_transform_precoding, n_prbs, start_prb, power_class);
