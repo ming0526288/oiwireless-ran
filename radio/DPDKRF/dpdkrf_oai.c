@@ -50,6 +50,8 @@ int gRxCtrlIdxRead = 0;
 
 int g_syncing = -1;
 
+int g_rate = 1;
+
 int32_t test_dpdkrf_read (openair0_device *device, openair0_timestamp *ptimestamp, void **buff1, int nsamps, int cc){
 
 	void *buff[4];
@@ -126,7 +128,7 @@ int trx_dpdkrf_start(openair0_device *device) {
     sleep(2);
     openair0_cfg = device->openair0_cfg;
 #if 1
-	dpdk_device_start(3,4, 5000, openair0_cfg->tx_num_channels, openair0_cfg->rx_num_channels);
+	dpdk_device_start(3,4, 5000, openair0_cfg->tx_num_channels, openair0_cfg->rx_num_channels, g_rate);
     //printf("tx txbase %p, txbase[0] %p, &txbase[0][0] %p,  rx addr %p ,rxbase[0] %p, &rxbase[0][0] %p\n", 
     //openair0_cfg->txbase, 
     //openair0_cfg->txbase[0],
@@ -240,34 +242,38 @@ int device_init(openair0_device *device, openair0_config_t *openair0_cfg) {
         openair0_cfg->tx_sample_advance     = 0;//1232;
         openair0_cfg[0].tx_bw               = 100e6;
         openair0_cfg[0].rx_bw               = 100e6;
+        g_rate = 1;
         break;
     case 61440000:
         openair0_cfg->samples_per_packet    = 61440;
-        openair0_cfg->tx_sample_advance     = 70;
+        openair0_cfg->tx_sample_advance     = 0;
         openair0_cfg[0].tx_bw               = 40e6;
         openair0_cfg[0].rx_bw               = 40e6;
+        g_rate = 2;
         break;
     case 30720000:
         openair0_cfg->samples_per_packet    = 30720;
-        openair0_cfg->tx_sample_advance     = 70;
+        openair0_cfg->tx_sample_advance     = 0;
         openair0_cfg[0].tx_bw               = 20e6;
         openair0_cfg[0].rx_bw               = 20e6;
+        g_rate =  4;
         break;
     case 15360000:
         openair0_cfg->samples_per_packet    = 15360;
-        openair0_cfg->tx_sample_advance     = 68;
+        openair0_cfg->tx_sample_advance     = 0;
         openair0_cfg[0].tx_bw               = 10e6;
         openair0_cfg[0].rx_bw               = 10e6;
+        g_rate = 8;
         break;
     case 7680000:
         openair0_cfg->samples_per_packet    = 7680;
-        openair0_cfg->tx_sample_advance     = 34;
+        openair0_cfg->tx_sample_advance     = 0;
         openair0_cfg[0].tx_bw               = 5e6;
         openair0_cfg[0].rx_bw               = 5e6;
         break;
     case 1920000:
         openair0_cfg->samples_per_packet    = 1920;
-        openair0_cfg->tx_sample_advance     = 9;
+        openair0_cfg->tx_sample_advance     = 0;
         openair0_cfg[0].tx_bw               = 1.25e6;
         openair0_cfg[0].rx_bw               = 1.25e6;
         break;

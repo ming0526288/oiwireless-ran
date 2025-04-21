@@ -16,7 +16,7 @@
  * @return
  *   -
  */
-void dpdk_device_start(int dpdkLoopCoreId0, int dpdkLoopCoreId1, int startDelay, int antTxNum, int antRxNum);
+void dpdk_device_start(int dpdkLoopCoreId0, int dpdkLoopCoreId1, int startDelay, int antTxNum, int antRxNum, int dataRate);
 /**
  * 驱动回调函数，在接收到整slot的数据后，驱动调用这个函数.函数内容可由用户改写。
  * @param rxSlotIdx
