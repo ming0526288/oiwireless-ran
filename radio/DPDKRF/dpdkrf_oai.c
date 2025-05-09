@@ -139,19 +139,19 @@ int trx_dpdkrf_start(openair0_device *device) {
 
     sleep(1);
     //printf("trx_dpdkrf_start FREQ NOT SET!!!!!!!\n\n\n\n\n\n\n\n\n\n\n\n");
-	trx_dpdkrf_getInfo(0);
-    sleep(1);
+	//trx_dpdkrf_getInfo(0);
+    //sleep(1);
 
     trx_dpdkrf_setFreq((int64_t)openair0_cfg->rx_freq[0], (int64_t)openair0_cfg->tx_freq[0], 0);
     printf("set freq = %ld %ld\n\n",(int64_t)(openair0_cfg->rx_freq[0]), (int64_t)(openair0_cfg->tx_freq[0]));
-    sleep(1);
+    //sleep(1);
 
     //int64_t txgetfreq, rxgetfreq;
     //int ret = trx_dpdkrf_getFreq( &rxgetfreq, &txgetfreq, 0);
     //printf("get freq = rx %ld tx: %ld\n\n",rxgetfreq, txgetfreq);
     //usleep(500);   
 	trx_dpdkrf_gainTx(openair0_cfg->tx_gain[0], openair0_cfg->tx_gain[0], openair0_cfg->tx_gain[0], openair0_cfg->tx_gain[0], 0);
-	sleep(1);
+	//sleep(1);
 	trx_dpdkrf_gainRx(openair0_cfg->rx_gain[0], openair0_cfg->rx_gain[0], openair0_cfg->rx_gain[0], openair0_cfg->rx_gain[0], 0);
 	printf("txgains (0-30) %d, rxgains(30-0) %d\n", (int)(openair0_cfg->tx_gain[0]), (int)(openair0_cfg->rx_gain[0]));
 #endif	
