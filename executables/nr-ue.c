@@ -422,6 +422,10 @@ static void UE_synch(void *arg) {
         UE->is_synchronized = 1;     
     }
   }
+  else
+  {
+      g_resync = 0;
+  }
 }
 
 static void RU_write(nr_rxtx_thread_data_t *rxtxD, bool sl_tx_action)
