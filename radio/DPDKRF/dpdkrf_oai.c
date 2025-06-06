@@ -134,7 +134,7 @@ int trx_dpdkrf_start(openair0_device *device) {
     sleep(2);
     openair0_cfg = device->openair0_cfg;
 #if 1
-	dpdk_device_start(3,4, 5000, openair0_cfg->tx_num_channels, openair0_cfg->rx_num_channels, g_rate);
+	dpdk_device_start(3,4, 5000, openair0_cfg->tx_num_channels, openair0_cfg->rx_num_channels, g_rate, 0);
     //printf("tx txbase %p, txbase[0] %p, &txbase[0][0] %p,  rx addr %p ,rxbase[0] %p, &rxbase[0][0] %p\n", 
     //openair0_cfg->txbase, 
     //openair0_cfg->txbase[0],
