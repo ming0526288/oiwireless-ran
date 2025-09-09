@@ -16,8 +16,19 @@ endif()
 # Expand relative path. This is important if the provided path contains a tilde (~)
 get_filename_component(CPM_DOWNLOAD_LOCATION ${CPM_DOWNLOAD_LOCATION} ABSOLUTE)
 
+execute_process(COMMAND wget --spider --quiet -t 3 -T 5 https://github.com/cpm-cmake/CPM.cmake/releases/download/v${CPM_DOWNLOAD_VERSION}/CPM.cmake
+  OUTPUT_QUIET
+  ERROR_QUIET
+  RESULT_VARIABLE wget_result
+)
+if(wget_result EQUAL 0)
+  set(CPM_DOWNLOAD_URL "https://github.com/cpm-cmake/CPM.cmake/releases/download/v${CPM_DOWNLOAD_VERSION}/CPM.cmake")
+else()
+  set(CPM_DOWNLOAD_URL "https://gitee.com/OIWireless/CPM.cmake/releases/download/v${CPM_DOWNLOAD_VERSION}/CPM_${CPM_DOWNLOAD_VERSION}.cmake")
+endif()
+
 file(DOWNLOAD
-     https://github.com/cpm-cmake/CPM.cmake/releases/download/v${CPM_DOWNLOAD_VERSION}/CPM.cmake
+     ${CPM_DOWNLOAD_URL}
      ${CPM_DOWNLOAD_LOCATION} EXPECTED_HASH SHA256=${CPM_HASH_SUM}
 )
 

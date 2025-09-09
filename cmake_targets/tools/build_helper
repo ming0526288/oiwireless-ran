@@ -190,7 +190,11 @@ install_usrp_uhd_driver_from_source(){
     pushd /tmp
     echo "Cloning UHD driver repository"
     rm -rf /tmp/uhd
-    git clone https://github.com/EttusResearch/uhd.git
+    if  wget -t 3 -T 5 --quiet --spider https://github.com/EttusResearch/uhd.git; then
+        git clone https://github.com/EttusResearch/uhd.git
+    else
+        git clone https://gitee.com/OIWireless/uhd.git
+    fi
     cd uhd
     # For our legacy TDD eNB running with a B2xx RF board
     # the following patch has to be applied
@@ -249,7 +253,7 @@ install_usrp_uhd_driver_from_source(){
 }
 
 check_install_usrp_uhd_driver(){
-    if [[ "$OS_BASEDISTRO" == "debian" ]]; then
+        if [[ "$OS_BASEDISTRO" == "debian" ]]; then
         boost_libs_ubuntu="libboost-chrono-dev libboost-date-time-dev libboost-filesystem-dev libboost-program-options-dev libboost-thread-dev libboost-test-dev libboost-regex-dev"
         #first we remove old installation
         $SUDO apt-get remove uhd* libuhd* -y || true
@@ -566,7 +570,11 @@ install_asn1c_from_source(){
     $SUDO $INSTALLER -y install bison flex
     $SUDO rm -rf /tmp/asn1c
     # GIT_SSL_NO_VERIFY=true git clone https://gitlab.eurecom.fr/oai/asn1c.git /tmp/asn1c
-    git clone https://github.com/mouse07410/asn1c /tmp/asn1c
+    if  wget -t 3 -T 5 --quiet --spider https://github.com/mouse07410/asn1c; then
+        git clone https://github.com/mouse07410/asn1c /tmp/asn1c
+    else
+        git clone https://gitee.com/OIWireless/asn1c /tmp/asn1c
+    fi
     cd /tmp/asn1c
     #git checkout vlm_master
     # hotfix: current vlm_master (5fa129cf3161da9ff2d67341e6277e818c0f5d6a)
@@ -589,7 +597,11 @@ install_simde_from_source(){
     echo_info "\nInstalling SIMDE from source without test cases (header files only)"
     cd /tmp
     $SUDO rm -rf /tmp/simde
-    git clone https://github.com/simd-everywhere/simde-no-tests.git /tmp/simde
+    if  wget -t 3 -T 5 --quiet --spider https://github.com/simd-everywhere/simde-no-tests.git ; then
+         git clone https://github.com/simd-everywhere/simde-no-tests.git /tmp/simde
+    else
+        git clone https://gitee.com/OIWireless/simde-no-tests.git /tmp/simde
+    fi
     cd /tmp/simde
     # we can specify a given version of SIMDE (sha-one or tag)
     if [[ -v SIMDE_VERSION ]]; then
@@ -648,7 +660,11 @@ install_userspace_rcu() {
     echo_info "\nInstalling U-RCU from source."
     cd /tmp
     $SUDO rm -rf /tmp/urcu
-    git clone https://github.com/urcu/userspace-rcu.git /tmp/urcu
+    if  wget -t 3 -T 5 --quiet --spider https://github.com/urcu/userspace-rcu.git; then
+         git clone https://github.com/urcu/userspace-rcu.git /tmp/urcu
+    else
+        git clone https://gitee.com/OIWireless/userspace-rcu.git /tmp/urcu
+    fi
     cd /tmp/urcu
     git checkout stable-0.12
     ./bootstrap && ./configure && make
