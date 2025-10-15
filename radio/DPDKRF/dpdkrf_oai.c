@@ -56,8 +56,8 @@ int g_rate = 1;
 static int64_t freq_tx  = -1;
 static int64_t freq_rx  = -1;
 static int64_t freq_offset  = 0;
-int64_t freq_air = 6000000000;//5.9g
-
+//int64_t freq_air = 6000000000;//5.9g
+int64_t freq_air = 3349380000;
 int32_t test_dpdkrf_read (openair0_device *device, openair0_timestamp *ptimestamp, void **buff1, int nsamps, int cc){
 
 	void *buff[4];
