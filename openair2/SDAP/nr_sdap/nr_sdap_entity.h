@@ -78,52 +78,58 @@ typedef struct qfi2drb_s {
 void nr_pdcp_submit_sdap_ctrl_pdu(ue_id_t ue_id, rb_id_t sdap_ctrl_pdu_drb, nr_sdap_ul_hdr_t ctrl_pdu);
 
 typedef struct nr_sdap_entity_s {
-  ue_id_t ue_id;
-  rb_id_t default_drb;
+  ue_id_t ue_id;                  // 关联的UE ID
+  rb_id_t default_drb;            // 默认的DRB ID(没有匹配的QFI时使用)
   /// sdap_tun_read_thread needs to know if we are gNB/UE, so for noS1 mode,
-  /// store which one we are
+  /// store which one we are  //若为 noS1 模式（即无核心网），则需要此字段区分角色。
   bool is_gnb;
-  int pdusession_id;
-  int pdusession_sock;
-  pthread_t pdusession_thread;
-  bool stop_thread;
-  int qfi;
 
-  qfi2drb_t qfi2drb_table[SDAP_MAX_QFI];
+  /* === PDU Session 相关 === */
+  int pdusession_id;              // 对应的PDU Session ID(从核心网分配)
+  int pdusession_sock;            // 对应的TUN 虚拟网卡文件描述符(用于接收来自核心网/本地IP的包)
+  pthread_t pdusession_thread;    // 负责从TUN 读取IP包并送入SDAP的线程
+  bool stop_thread;               // 控制线程退出标志
+  int qfi;                        // 当前SDAP实体默认使用的Qos Flow ID(QFI)
 
-  void (*qfi2drb_map_update)(struct nr_sdap_entity_s *entity, uint8_t qfi, rb_id_t drb, bool has_sdap_rx, bool has_sdap_tx);
-  void (*qfi2drb_map_delete)(struct nr_sdap_entity_s *entity, uint8_t qfi);
-  rb_id_t (*qfi2drb_map)(struct nr_sdap_entity_s *entity, uint8_t qfi);
+  /* === QFI → DRB 映射表 === */
+  qfi2drb_t qfi2drb_table[SDAP_MAX_QFI]; //存储多个QFI到DRB的映射信息
 
-  nr_sdap_ul_hdr_t (*sdap_construct_ctrl_pdu)(uint8_t qfi);
-  rb_id_t (*sdap_map_ctrl_pdu)(struct nr_sdap_entity_s *entity, rb_id_t pdcp_entity, int map_type, uint8_t dl_qfi);
-  void (*sdap_submit_ctrl_pdu)(ue_id_t ue_id, rb_id_t sdap_ctrl_pdu_drb, nr_sdap_ul_hdr_t ctrl_pdu);
+  void (*qfi2drb_map_update)(struct nr_sdap_entity_s *entity, uint8_t qfi, rb_id_t drb, bool has_sdap_rx, bool has_sdap_tx);//更新映射表，QFI，DRB ID，has_sdap_rx是否由SDAP接收功能，has_sdap_tx是否有SDAP发送功能
+  void (*qfi2drb_map_delete)(struct nr_sdap_entity_s *entity, uint8_t qfi);//删除QFI映射
+  rb_id_t (*qfi2drb_map)(struct nr_sdap_entity_s *entity, uint8_t qfi);    //查询某个QFI 映射到的DRB
 
+  /* === 控制PDU相关函数（SDAP控制面PDU构建与提交） === */
+  nr_sdap_ul_hdr_t (*sdap_construct_ctrl_pdu)(uint8_t qfi); //构造一个上行控制PDU
+  rb_id_t (*sdap_map_ctrl_pdu)(struct nr_sdap_entity_s *entity, rb_id_t pdcp_entity, int map_type, uint8_t dl_qfi);//映射控制PDU到PDCP实体，通常用于处理SDAP Control PDU 的调度
+  void (*sdap_submit_ctrl_pdu)(ue_id_t ue_id, rb_id_t sdap_ctrl_pdu_drb, nr_sdap_ul_hdr_t ctrl_pdu);//构造好的SDAP控制PDU提交发送
+
+  //SDAP → PDCP 的上行数据发送接口，从 TUN 接收到的IP数据会通过此函数送入 PDCP 层
   bool (*tx_entity)(struct nr_sdap_entity_s *entity,
-                    protocol_ctxt_t *ctxt_p,
-                    const srb_flag_t srb_flag,
-                    const rb_id_t rb_id,
-                    const mui_t mui,
-                    const confirm_t confirm,
-                    const sdu_size_t sdu_buffer_size,
-                    unsigned char *const sdu_buffer,
-                    const pdcp_transmission_mode_t pt_mode,
-                    const uint32_t *sourceL2Id,
-                    const uint32_t *destinationL2Id,
+                    protocol_ctxt_t *ctxt_p, //含RNTI/UE ID
+                    const srb_flag_t srb_flag,//标识是信令SRB还是数据DRB
+                    const rb_id_t rb_id, //目标RB承载ID
+                    const mui_t mui,          //RLC层管理消息唯一标识
+                    const confirm_t confirm,  //RLC层管理消息的确认
+                    const sdu_size_t sdu_buffer_size,//IP包长度
+                    unsigned char *const sdu_buffer, //待发送的IP包内容
+                    const pdcp_transmission_mode_t pt_mode,//PDCP传输模式
+                    const uint32_t *sourceL2Id,     //可选的L2地址，用于封装
+                    const uint32_t *destinationL2Id,//可选的L2地址，用于封装
                     const uint8_t qfi,
                     const bool rqi);
 
+  //PDCP → SDAP → TUN的下行数据回调，当PDCP层收到来自空口的下行数据，会通过此函数回调进入TUN
   void (*rx_entity)(struct nr_sdap_entity_s *entity,
                     rb_id_t pdcp_entity,
                     int is_gnb,
                     bool has_sdap_rx,
                     int pdusession_id,
                     ue_id_t ue_id,
-                    char *buf,
-                    int size);
+                    char *buf, //接收到的数据
+                    int size); //数据长度
 
   /* List of entities */
-  struct nr_sdap_entity_s *next_entity;
+  struct nr_sdap_entity_s *next_entity; //指向下一个SDAP实体，用于多个PDU Session的链表
 } nr_sdap_entity_t;
 
 /* QFI to DRB Mapping Related Function */

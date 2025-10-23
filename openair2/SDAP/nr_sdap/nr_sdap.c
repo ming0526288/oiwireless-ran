@@ -31,6 +31,24 @@
 #include "rlc.h"
 #include "tun_if.h"
 #include "system.h"
+#include <fcntl.h>    // for fcntl
+#include <string.h>   // for strerror, memcpy
+#include "common/utils/threadPool/notified_fifo.h"
+#include <stdatomic.h>   // ? 计数器
+#include <ctype.h>
+
+static notifiedFIFO_t ip_queue;
+static void ipq_init(void) { initNotifiedFIFO(&ip_queue); }
+static pthread_once_t ipq_once = PTHREAD_ONCE_INIT;
+static inline void ipq_init_once(void){ pthread_once(&ipq_once, ipq_init); }
+
+// 统计用：push/pop 次数
+static atomic_ulong ipq_push_cnt = 0;
+static atomic_ulong ipq_pop_cnt  = 0;
+
+// 消费者线程句柄（只启动一次）
+static pthread_t ipq_consumer_th;
+static bool ipq_consumer_started = false;
 
 static void reblock_tun_socket(int fd)
 {
@@ -107,22 +125,96 @@ void sdap_data_ind(rb_id_t pdcp_entity,
                          size);
 }
 
+// // 只打印前16字节
+// static void *sdap_fifo_consumer(void *arg)
+// {
+//   (void)arg;
+//   LOG_I(SDAP, "[FIFO] consumer thread started\n");
+//   for (;;) {
+//     notifiedFIFO_elt_t *elt = pullNotifiedFIFO(&ip_queue); // 阻塞等待
+//     if (!elt) continue;
+
+//     // 取指针+长度（不同分支：有的是宏，有的是结构成员）
+//     uint8_t *p = (uint8_t*)NotifiedFifoData(elt);
+//     uint32_t  nlen = 0;
+//     memcpy(&nlen, p, sizeof(uint32_t));
+//     uint8_t  *data = p + sizeof(uint32_t);
+
+//     int show = (nlen < 16) ? (int)nlen : 16;
+//     char hex[3*show+1];
+//     for (int i = 0; i < show; i++) sprintf(hex + 3*i, "%02X ", data[i]);
+//     if (show > 0) hex[3*show-1] = '\0'; else hex[0] = '\0';
+
+//     unsigned long pops = atomic_fetch_add_explicit(&ipq_pop_cnt, 1, memory_order_relaxed) + 1;
+//     LOG_I(SDAP, "[FIFO] pop#%lu len=%u, first %dB: %s\n", pops, nlen, show, hex);
+
+//     delNotifiedFIFO_elt(elt);
+//   }
+//   return NULL;
+// }
+
+//打印全部
+static void *sdap_fifo_consumer(void *arg)
+{
+  (void)arg;
+  LOG_I(SDAP, "[FIFO] consumer thread started\n");
+  for (;;) {
+    notifiedFIFO_elt_t *elt = pullNotifiedFIFO(&ip_queue); // 阻塞等待
+    if (!elt) continue;
+
+    // 取指针+长度（不同分支：有的是宏，有的是结构成员）
+    uint8_t *p = (uint8_t*)NotifiedFifoData(elt);
+    uint32_t  nlen = 0;
+    memcpy(&nlen, p, sizeof(uint32_t));
+    uint8_t  *data = p + sizeof(uint32_t);
+
+    char hex[3*nlen+1];
+    for (int i = 0; i < nlen; i++) sprintf(hex + 3*i, "%02X ", data[i]);
+    if (nlen > 0) hex[3*nlen-1] = '\0'; else hex[0] = '\0';
+
+    unsigned long pops = atomic_fetch_add_explicit(&ipq_pop_cnt, 1, memory_order_relaxed) + 1;
+    LOG_I(SDAP, "[FIFO] pop#%lu len=%u\n", pops, nlen);
+    LOG_I(SDAP, "%s\n", hex);
+
+    delNotifiedFIFO_elt(elt);
+  }
+  return NULL;
+}
+
+// 辅助函数：只启动一次消费者线程
+static inline void maybe_start_ipq_consumer(void)
+{
+  if (!ipq_consumer_started) {
+    threadCreate(&ipq_consumer_th, sdap_fifo_consumer, NULL,
+                 "sdap_fifo_consumer", -1, OAI_PRIORITY_RT_LOW);
+    ipq_consumer_started = true;
+  }
+}
+
 static void *sdap_tun_read_thread(void *arg)
 {
+  //   // 队列初始化（仅执行一次）
+  // static bool ip_queue_initialized = false;
+  // if (!ip_queue_initialized) {
+  //     init_ip_queue();  // 只初始化一次
+  //     ip_queue_initialized = true;
+  // }
+
+
   DevAssert(arg != NULL);
   nr_sdap_entity_t *entity = arg;
 
-  char rx_buf[NL_MAX_PAYLOAD];
+  char rx_buf[NL_MAX_PAYLOAD]; //rx_buf时接收缓冲区，用来存放从TUN网卡读到的数据包
   int len;
-  reblock_tun_socket(entity->pdusession_sock);
+  reblock_tun_socket(entity->pdusession_sock);//用于设置TUN接口的socket为非阻塞模式(避免线程死等数据)
 
-  int rb_id = 1;
+  int rb_id = 1;//假定RB ID = 1(无线承载ID)，在正式环境中，这个ID应该由上层(RRC配置)决定
 
-  while (!entity->stop_thread) {
-    len = read(entity->pdusession_sock, &rx_buf, NL_MAX_PAYLOAD);
+  while (!entity->stop_thread) { //主循环持续运行，直到线程stop_thread置位或fd被关闭
+    len = read(entity->pdusession_sock, &rx_buf, NL_MAX_PAYLOAD);//从TUN设备读取上行数据(即从用户态应用发来的IP包)
     if (len == -1) {
       if (errno == EINTR)
-        continue; // interrupted system call
+        continue; // interrupted system call信号终端，重试
 
       if (errno == EBADF || errno == EINVAL) {
         LOG_I(SDAP, "Socket closed, exiting TUN read thread for UE %ld, PDU session %d\n", entity->ue_id, entity->pdusession_id);
@@ -134,30 +226,134 @@ static void *sdap_tun_read_thread(void *arg)
     }
 
     if (len == 0) {
-      LOG_W(SDAP, "TUN socket returned EOF - exiting thread\n");
+      LOG_W(SDAP, "TUN socket returned EOF - exiting thread\n");//如果返回0，表示退出线程
       break;
     }
 
-    LOG_D(SDAP, "read data of size %d\n", len);
+    // // 创建 FIFO 元素并存入队列
+    // notifiedFIFO_elt_t *elt = newNotifiedFIFO_elt(len, 0, NULL, NULL);  // 传输的长度和数据
+    // memcpy(NotifiedFifoData(elt), rx_buf, len);  // 将读取到的 IP 数据包放入 FIFO 元素
+    // pushNotifiedFIFO(&ip_queue, elt);  // 将数据包存入 FIFO 队列
 
-    protocol_ctxt_t ctxt = {.enb_flag = entity->is_gnb, .rntiMaybeUEid = entity->ue_id};
+    // LOG_I(SDAP, "[SDAP-TUN] read data of size %d\n", len);
 
-    bool dc = entity->is_gnb ? false : SDAP_HDR_UL_DATA_PDU;
+    // ---- 入队：[长度(4B) + 数据] ----
+    size_t total = sizeof(uint32_t) + (size_t)len; // 计算要分配的总字节数:预留4个字节存放"报文长度"(uint32_t),后面紧跟IP包数据len字节
+    notifiedFIFO_elt_t *elt = newNotifiedFIFO_elt(total, 0, NULL, NULL);//向OAI的通知队列分配一个元素(FIFO节点)，数据区大小为total。后面两个NULL与回调相关这里不需要；0是优先级/标志位(实现里不用到就填0)
+    uint8_t *p = (uint8_t*)NotifiedFifoData(elt);
+    uint32_t nlen = (uint32_t)len;
+    memcpy(p, &nlen, sizeof(uint32_t)); //把长度写道数据区开头的4个字节里。这里队列消费者拿到一块内存后，先读这4个字节就知道后面真正的报文长度是多少
+    memcpy(p + sizeof(uint32_t), rx_buf, (size_t)len); // 把实际的IP包内容拷贝到长度字节之后，实现[长度|数据]格式
+    pushNotifiedFIFO(&ip_queue, elt); //把这个元素压入之前初始化好的ip_queue。
+
+    atomic_fetch_add_explicit(&ipq_push_cnt, 1, memory_order_relaxed);
+    LOG_I(SDAP, "[SDAP-TUN] read data of size %d (push=%lu pop=%lu)\n",
+          len,
+          atomic_load_explicit(&ipq_push_cnt, memory_order_relaxed),
+          atomic_load_explicit(&ipq_pop_cnt,  memory_order_relaxed));
+
+    protocol_ctxt_t ctxt = {.enb_flag = entity->is_gnb, .rntiMaybeUEid = entity->ue_id}; //跨层传递上下文的结构，rntiMaybeUEid:在gNB侧表示UE的表示(RNTI)
+
+    bool dc = entity->is_gnb ? false : SDAP_HDR_UL_DATA_PDU; //确定方向，若在gNB侧：dc = false，表示接收到上行数据；若在UE侧，dc = SDAP_UDR_UL_DATA_PDU,表示准备上行发送
 
     DevAssert(entity != NULL);
-    entity->tx_entity(entity,
-                      &ctxt,
-                      SRB_FLAG_NO,
-                      rb_id,
-                      RLC_MUI_UNDEFINED,
+    entity->tx_entity(entity, //当前SDAP实体
+                      &ctxt,  //协议上下文(包含RNTI/UE ID)
+                      SRB_FLAG_NO,//表示这是数据承载(DRB),不是信令承载(SRB)
+                      rb_id,  //无线承载ID
+                      RLC_MUI_UNDEFINED, 
                       RLC_SDU_CONFIRM_NO,
-                      len,
-                      (unsigned char *)rx_buf,
-                      PDCP_TRANSMISSION_MODE_DATA,
+                      len,    //数据长度
+                      (unsigned char *)rx_buf, //要发送的数据内容
+                      PDCP_TRANSMISSION_MODE_DATA, // 表示走PDCP数据模式
                       NULL,
                       NULL,
-                      entity->qfi,
-                      dc);
+                      entity->qfi, //Qos Flow Identifier(用于 5G Qos流调度)
+                      dc);// 数据方向标志(是否上行UL)
+  }
+
+  return NULL;
+}
+
+static void *sdap_direct_tun_read_thread(void *arg)
+{
+  //   // 队列初始化（仅执行一次）
+  // static bool ip_queue_initialized = false;
+  // if (!ip_queue_initialized) {
+  //     init_ip_queue();  // 只初始化一次
+  //     ip_queue_initialized = true;
+  // }
+
+
+  DevAssert(arg != NULL);
+  nr_sdap_entity_t *entity = arg;
+
+  char rx_buf[NL_MAX_PAYLOAD]; //rx_buf时接收缓冲区，用来存放从TUN网卡读到的数据包
+  int len;
+  reblock_tun_socket(entity->pdusession_sock);//用于设置TUN接口的socket为非阻塞模式(避免线程死等数据)
+
+  int rb_id = 1;//假定RB ID = 1(无线承载ID)，在正式环境中，这个ID应该由上层(RRC配置)决定
+
+  while (!entity->stop_thread) { //主循环持续运行，直到线程stop_thread置位或fd被关闭
+    len = read(entity->pdusession_sock, &rx_buf, NL_MAX_PAYLOAD);//从TUN设备读取上行数据(即从用户态应用发来的IP包)
+    if (len == -1) {
+      if (errno == EINTR)
+        continue; // interrupted system call信号终端，重试
+
+      if (errno == EBADF || errno == EINVAL) {
+        LOG_I(SDAP, "Socket closed, exiting TUN read thread for UE %ld, PDU session %d\n", entity->ue_id, entity->pdusession_id);
+        break;
+      }
+
+      LOG_E(PDCP, "read() failed: errno %d (%s)\n", errno, strerror(errno));
+      break;
+    }
+
+    if (len == 0) {
+      LOG_W(SDAP, "TUN socket returned EOF - exiting thread\n");//如果返回0，表示退出线程
+      break;
+    }
+
+    // // 创建 FIFO 元素并存入队列
+    // notifiedFIFO_elt_t *elt = newNotifiedFIFO_elt(len, 0, NULL, NULL);  // 传输的长度和数据
+    // memcpy(NotifiedFifoData(elt), rx_buf, len);  // 将读取到的 IP 数据包放入 FIFO 元素
+    // pushNotifiedFIFO(&ip_queue, elt);  // 将数据包存入 FIFO 队列
+
+    // LOG_I(SDAP, "[SDAP-TUN] read data of size %d\n", len);
+
+    // ---- 入队：[长度(4B) + 数据] ----
+    size_t total = sizeof(uint32_t) + (size_t)len; // 计算要分配的总字节数:预留4个字节存放"报文长度"(uint32_t),后面紧跟IP包数据len字节
+    notifiedFIFO_elt_t *elt = newNotifiedFIFO_elt(total, 0, NULL, NULL);//向OAI的通知队列分配一个元素(FIFO节点)，数据区大小为total。后面两个NULL与回调相关这里不需要；0是优先级/标志位(实现里不用到就填0)
+    uint8_t *p = (uint8_t*)NotifiedFifoData(elt);
+    uint32_t nlen = (uint32_t)len;
+    memcpy(p, &nlen, sizeof(uint32_t)); //把长度写道数据区开头的4个字节里。这里队列消费者拿到一块内存后，先读这4个字节就知道后面真正的报文长度是多少
+    memcpy(p + sizeof(uint32_t), rx_buf, (size_t)len); // 把实际的IP包内容拷贝到长度字节之后，实现[长度|数据]格式
+    pushNotifiedFIFO(&ip_queue, elt); //把这个元素压入之前初始化好的ip_queue。
+
+    atomic_fetch_add_explicit(&ipq_push_cnt, 1, memory_order_relaxed);
+    LOG_I(SDAP, "[SDAP-TUN] read data of size %d (push=%lu pop=%lu)\n",
+          len,
+          atomic_load_explicit(&ipq_push_cnt, memory_order_relaxed),
+          atomic_load_explicit(&ipq_pop_cnt,  memory_order_relaxed));
+
+    protocol_ctxt_t ctxt = {.enb_flag = entity->is_gnb, .rntiMaybeUEid = entity->ue_id}; //跨层传递上下文的结构，rntiMaybeUEid:在gNB侧表示UE的表示(RNTI)
+
+    bool dc = entity->is_gnb ? false : SDAP_HDR_UL_DATA_PDU; //确定方向，若在gNB侧：dc = false，表示接收到上行数据；若在UE侧，dc = SDAP_UDR_UL_DATA_PDU,表示准备上行发送
+
+    DevAssert(entity != NULL);
+    entity->tx_entity(entity, //当前SDAP实体
+                      &ctxt,  //协议上下文(包含RNTI/UE ID)
+                      SRB_FLAG_NO,//表示这是数据承载(DRB),不是信令承载(SRB)
+                      rb_id,  //无线承载ID
+                      RLC_MUI_UNDEFINED, 
+                      RLC_SDU_CONFIRM_NO,
+                      len,    //数据长度
+                      (unsigned char *)rx_buf, //要发送的数据内容
+                      PDCP_TRANSMISSION_MODE_DATA, // 表示走PDCP数据模式
+                      NULL,
+                      NULL,
+                      entity->qfi, //Qos Flow Identifier(用于 5G Qos流调度)
+                      dc);// 数据方向标志(是否上行UL)
   }
 
   return NULL;
@@ -176,11 +372,28 @@ void start_sdap_tun_gnb_first_ue_default_pdu_session(ue_id_t ue_id)
   threadCreate(&entity->pdusession_thread, sdap_tun_read_thread, entity, "gnb_tun_read_thread", -1, OAI_PRIORITY_RT_LOW);
 }
 
+void start_direct_sdap_tun_gnb_first_ue_default_pdu_session(ue_id_t ue_id)
+{
+  ipq_init_once();  //队列初始化（仅执行一次）
+  maybe_start_ipq_consumer();//启动消费者线程（只启动一次），进行测试打印队列内容
+  nr_sdap_entity_t *entity = nr_sdap_get_entity(ue_id, get_softmodem_params()->default_pdu_session_id);
+  DevAssert(entity != NULL);
+  DevAssert(entity->is_gnb);//启动基站侧的虚拟网卡
+  char *ifprefix = get_softmodem_params()->nsa ? "oaitun_gnb" : "oaitun_enb";
+  char ifname[IFNAMSIZ];
+  tun_generate_ifname(ifname, ifprefix, ue_id - 1);
+  entity->pdusession_sock = tun_alloc(ifname);
+  tun_config(ifname, "192.169.0.1", NULL);
+  threadCreate(&entity->pdusession_thread, sdap_direct_tun_read_thread, entity, "gnb_tun_read_thread", -1, OAI_PRIORITY_RT_LOW);
+}
+
 void start_sdap_tun_ue(ue_id_t ue_id, int pdu_session_id, int sock)
 {
+  ipq_init_once();  //队列初始化（仅执行一次）
+  maybe_start_ipq_consumer();//启动消费者线程（只启动一次），进行测试打印队列内容
   nr_sdap_entity_t *entity = nr_sdap_get_entity(ue_id, pdu_session_id);
   DevAssert(entity != NULL);
-  DevAssert(!entity->is_gnb);
+  DevAssert(!entity->is_gnb);//UE侧的
   entity->pdusession_sock = sock;
   entity->stop_thread = false;
   char thread_name[64];

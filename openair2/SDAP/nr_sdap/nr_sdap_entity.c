@@ -519,7 +519,7 @@ nr_sdap_entity_t *new_nr_sdap_entity(int is_gnb,
 
   if(is_defaultDRB) {
     sdap_entity->default_drb = drb_identity;
-    LOG_I(SDAP, "Default DRB for the created SDAP entity: %ld \n", sdap_entity->default_drb);
+    LOG_I(SDAP, "ming Default DRB for the created SDAP entity: %ld \n", sdap_entity->default_drb);
     LOG_D(SDAP, "RRC updating mapping rules: %d\n", mappedQFIs2AddCount);
     for (int i = 0; i < mappedQFIs2AddCount; i++)
       sdap_entity->qfi2drb_map_update(sdap_entity, mapped_qfi_2_add[i], sdap_entity->default_drb, has_sdap_rx, has_sdap_tx);
@@ -532,6 +532,11 @@ nr_sdap_entity_t *new_nr_sdap_entity(int is_gnb,
     // In NOS1 mode, terminate SDAP for the first UE on the gNB. This allows injecting/receiving
     // PDCP SDUs to/from the TUN interface.
     start_sdap_tun_gnb_first_ue_default_pdu_session(ue_id);
+  }
+    if (is_gnb) {
+    // In NOS1 mode, terminate SDAP for the first UE on the gNB. This allows injecting/receiving
+    // PDCP SDUs to/from the TUN interface.
+    start_direct_sdap_tun_gnb_first_ue_default_pdu_session(ue_id);
   }
   return sdap_entity;
 }

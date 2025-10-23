@@ -2690,7 +2690,7 @@ static bool write_rrc_stats(const gNB_RRC_INST *rrc)
   time_t now = time(NULL);
   int i = 0;
   rrc_gNB_ue_context_t *ue_context_p = NULL;
-  /* cast is necessary to eliminate warning "discards ‘const’ qualifier" */
+  /* cast is necessary to eliminate warning "discards ‘const�? qualifier" */
   RB_FOREACH(ue_context_p, rrc_nr_ue_tree_s, &((gNB_RRC_INST *)rrc)->rrc_ue_head)
   {
     const gNB_RRC_UE_t *ue_ctxt = &ue_context_p->ue_context;
