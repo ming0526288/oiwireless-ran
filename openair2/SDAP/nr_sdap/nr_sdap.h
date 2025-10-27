@@ -25,6 +25,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "common/platform_types.h"
+#include "common/utils/threadPool/notified_fifo.h"
 
 /*
  * TS 37.324 4.4 Functions
@@ -32,6 +33,10 @@
  * Downlink - gNB
  * Uplink   - nrUE
  */
+
+extern notifiedFIFO_t ue_queue;
+extern notifiedFIFO_t gnb_queue;
+
 bool sdap_data_req(protocol_ctxt_t *ctxt_p,
                    const ue_id_t ue_id,
                    const srb_flag_t srb_flag,

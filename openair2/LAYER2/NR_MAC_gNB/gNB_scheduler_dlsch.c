@@ -43,6 +43,9 @@
 #include "executables/softmodem-common.h"
 #include "../../../nfapi/oai_integration/vendor_ext.h"
 
+#include "openair2/SDAP/nr_sdap/nr_sdap.h"
+#include "common/utils/threadPool/notified_fifo.h"
+
 ////////////////////////////////////////////////////////
 /////* DLSCH MAC PDU generation (6.1.2 TS 38.321) */////
 ////////////////////////////////////////////////////////
@@ -324,13 +327,13 @@ int nr_write_ce_dlsch_pdu(module_id_t module_idP,
 static void nr_store_dlsch_buffer(module_id_t module_id, frame_t frame, slot_t slot)
 {
   UE_iterator(RC.nrmac[module_id]->UE_info.connected_ue_list, UE) {
-    NR_UE_sched_ctrl_t *sched_ctrl = &UE->UE_sched_ctrl;
-    sched_ctrl->num_total_bytes = 0;
-    sched_ctrl->dl_pdus_total = 0;
+    NR_UE_sched_ctrl_t *sched_ctrl = &UE->UE_sched_ctrl; // 取出UE的调度控制结构。里面会放每条LC的RLC缓冲状态、累积的总字节数、总PDU数
+    sched_ctrl->num_total_bytes = 0; // 初始化总字节数为0
+    sched_ctrl->dl_pdus_total = 0; // 初始化总PDU数为0
 
     /* loop over all activated logical channels */
     // Note: DL_SCH_LCID_DCCH, DL_SCH_LCID_DCCH1, DL_SCH_LCID_DTCH
-    for (int i = 0; i < seq_arr_size(&sched_ctrl->lc_config); ++i) {
+    for (int i = 0; i < seq_arr_size(&sched_ctrl->lc_config); ++i) { // 遍历所有LC的配置，获取每条LC的RLC缓冲状态、累积的总字节数、总PDU数
       const nr_lc_config_t *c = seq_arr_at(&sched_ctrl->lc_config, i);
       const int lcid = c->lcid;
       const uint16_t rnti = UE->rnti;
@@ -340,13 +343,13 @@ static void nr_store_dlsch_buffer(module_id_t module_id, frame_t frame, slot_t s
         continue;
       if (lcid == DL_SCH_LCID_DTCH && nr_timer_is_active(&sched_ctrl->transm_interrupt))
         continue;
-      sched_ctrl->rlc_status[lcid] = nr_mac_rlc_status_ind(rnti, frame, lcid);
+      sched_ctrl->rlc_status[lcid] = nr_mac_rlc_status_ind(rnti, frame, lcid); // 获取该LC的RLC缓冲状态
 
-      if (sched_ctrl->rlc_status[lcid].bytes_in_buffer == 0)
+      if (sched_ctrl->rlc_status[lcid].bytes_in_buffer == 0) // 没有数据就不参与累计
         continue;
 
-      sched_ctrl->dl_pdus_total += sched_ctrl->rlc_status[lcid].pdus_in_buffer;
-      sched_ctrl->num_total_bytes += sched_ctrl->rlc_status[lcid].bytes_in_buffer;
+      sched_ctrl->dl_pdus_total += sched_ctrl->rlc_status[lcid].pdus_in_buffer; // 累加总PDU数，把各LC的数加到UE级的总量
+      sched_ctrl->num_total_bytes += sched_ctrl->rlc_status[lcid].bytes_in_buffer; // 累加总字节数
       LOG_D(MAC,
             "[gNB %d][%4d.%2d] %s%d->DLSCH, RLC status for UE %d: %d bytes in buffer, total DL buffer size = %d bytes, %d total PDU bytes, %s TA command\n",
             module_id,
@@ -361,6 +364,20 @@ static void nr_store_dlsch_buffer(module_id_t module_id, frame_t frame, slot_t s
             sched_ctrl->ta_apply ? "send":"do not send");
     }
   }
+    // notifiedFIFO_elt_t *elt = pullNotifiedFIFO(&ue_queue); // 假设有这个非阻塞API
+
+    //   uint8_t *p = (uint8_t*)NotifiedFifoData(elt);
+    //   uint32_t  nlen = 0;
+    //   memcpy(&nlen, p, sizeof(uint32_t));
+    //   // uint8_t  *data = p + sizeof(uint32_t);
+
+    //   if (nlen > 0) { // 用长度判是否“有货”，不是 data != NULL
+    //     // 注意：你必须知道这个 elt 属于哪个 RNTI 的 UE！
+    //     // 否则会把 A 的数据算到 B 身上。通常需要在元素里携带 RNTI。
+    //     LOG_I(NR_MAC, "gnb_queue != NULL\n");
+    //   }
+    //   delNotifiedFIFO_elt(elt); // 一定要释放
+    
 }
 
 void finish_nr_dl_harq(NR_UE_sched_ctrl_t *sched_ctrl, int harq_pid)
