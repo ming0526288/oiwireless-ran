@@ -362,21 +362,16 @@ static void nr_store_dlsch_buffer(module_id_t module_id, frame_t frame, slot_t s
             sched_ctrl->num_total_bytes,
             sched_ctrl->dl_pdus_total,
             sched_ctrl->ta_apply ? "send":"do not send");
+        if (notifiedFIFO_has_data(&gnb_queue)) {
+          printf("gnb_queue non-empty -> trigger DL scheduling\n"); 
+          // 仅告知“有数据”，给一个最小触发量（比如 1 字节/1PDU），
+          // 让后续调度流程去实际抓包并决定TB大小。
+          sched_ctrl->num_total_bytes += 1;
+          sched_ctrl->dl_pdus_total   += 1;
+          LOG_I(NR_MAC, "[direct] UE %04x: gnb_queue non-empty -> trigger DL scheduling\n", UE->rnti);
+        }
     }
   }
-    // notifiedFIFO_elt_t *elt = pullNotifiedFIFO(&ue_queue); // 假设有这个非阻塞API
-
-    //   uint8_t *p = (uint8_t*)NotifiedFifoData(elt);
-    //   uint32_t  nlen = 0;
-    //   memcpy(&nlen, p, sizeof(uint32_t));
-    //   // uint8_t  *data = p + sizeof(uint32_t);
-
-    //   if (nlen > 0) { // 用长度判是否“有货”，不是 data != NULL
-    //     // 注意：你必须知道这个 elt 属于哪个 RNTI 的 UE！
-    //     // 否则会把 A 的数据算到 B 身上。通常需要在元素里携带 RNTI。
-    //     LOG_I(NR_MAC, "gnb_queue != NULL\n");
-    //   }
-    //   delNotifiedFIFO_elt(elt); // 一定要释放
     
 }
 

@@ -51,7 +51,7 @@ typedef struct notifiedFIFO_elt_s {
   // user data behind it will be aligned to 32b as well
   // important! this needs to be the last member in the struct
   alignas(32) void *msgData;
-} notifiedFIFO_elt_t;
+} notifiedFIFO_elt_t; // 已通知的FIFO；带通知的先进先出队列
 
 typedef struct notifiedFIFO_s {
   notifiedFIFO_elt_t *outF;
@@ -220,5 +220,16 @@ static inline void abortNotifiedFIFO(notifiedFIFO_t *nf)
   condbroadcast(nf->notifF);
   mutexunlock(nf->lockF);
 }
+
+// notified_fifo.h
+static inline bool notifiedFIFO_has_data(notifiedFIFO_t *nf)
+{
+  bool ret = true;
+  mutexlock(nf->lockF);
+  ret = (!nf->abortFIFO && nf->outF != NULL);
+  mutexunlock(nf->lockF);
+  return ret;
+}
+
 
 #endif

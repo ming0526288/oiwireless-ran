@@ -151,7 +151,7 @@ static void *sdap_ue_fifo_consumer(void *arg)
     LOG_I(SDAP, "[FIFO] pop#%lu len=%u\n", pops, nlen);
     // LOG_I(SDAP, "%s\n", hex);
 
-    log_dump(SDAP, data, nlen, LOG_DUMP_C16, "\n");
+    // log_dump(SDAP, data, nlen, LOG_DUMP_C16, "\n");
     log_dump(SDAP, data, nlen, LOG_DUMP_CHAR, "\n");
 
     delNotifiedFIFO_elt(elt);
@@ -181,7 +181,7 @@ static void *sdap_gnb_fifo_consumer(void *arg)
     LOG_I(SDAP, "[FIFO] pop#%lu len=%u\n", pops, nlen);
     // LOG_I(SDAP, "%s\n", hex);
 
-    log_dump(SDAP, data, nlen, LOG_DUMP_C16, "\n");
+    // log_dump(SDAP, data, nlen, LOG_DUMP_C16, "\n");
     log_dump(SDAP, data, nlen, LOG_DUMP_CHAR, "\n");
 
     delNotifiedFIFO_elt(elt);
