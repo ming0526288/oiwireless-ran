@@ -224,7 +224,7 @@ static inline void abortNotifiedFIFO(notifiedFIFO_t *nf)
 // notified_fifo.h
 static inline bool notifiedFIFO_has_data(notifiedFIFO_t *nf)
 {
-  bool ret = true;
+  bool ret = false;
   mutexlock(nf->lockF);
   ret = (!nf->abortFIFO && nf->outF != NULL);
   mutexunlock(nf->lockF);
