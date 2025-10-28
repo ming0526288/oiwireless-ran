@@ -82,7 +82,7 @@
 #include "rrc_messages_types.h"
 #include "s1ap_messages_types.h"
 #include "uper_encoder.h"
-
+#include "openair3/NGAP/ngap_gNB_ue_context.h"
 #ifdef E2_AGENT
 #include "openair2/E2AP/RAN_FUNCTION/O-RAN/ran_func_rc_extern.h"
 #endif
@@ -842,7 +842,35 @@ void rrc_gNB_process_NGAP_PDUSESSION_SETUP_REQ(MessageDef *msg_p, instance_t ins
     cp_pdusession_resource_item_to_pdusession(&to_setup[i], &msg->pdusession[i]);
 
   uint64_t dl_ambr = msg->has_ue_ambr ? msg->ueAggMaxBitRate.br_dl : 0;
+// ==========================
+// ✅ Step: 解析 NAS_PDU 以提取 UE IP 地址
+// ==========================
+for (int i = 0; i < msg->nb_pdusessions_tosetup; i++) {
+  const pdusession_resource_item_t *pdu_item = &msg->pdusession[i];
 
+  if (pdu_item->nas_pdu.len > 0 && pdu_item->nas_pdu.buf != NULL) {
+      uint8_t *buf = pdu_item->nas_pdu.buf;
+      int len = pdu_item->nas_pdu.len;
+
+      // 寻找 IPv4 地址标志 (IEI = 0x29, type = 0x01)
+      for (int offset = 0; offset < len - 6; offset++) {
+          if (buf[offset] == 0x29 && buf[offset + 1] == 0x05 && buf[offset + 2] == 0x01) {
+              char ue_ip[64] = {0};
+              snprintf(ue_ip, sizeof(ue_ip), "%u.%u.%u.%u",
+                       buf[offset + 3],
+                       buf[offset + 4],
+                       buf[offset + 5],
+                       buf[offset + 6]);
+              LOG_I(NR_RRC, "Extracted UE IP: %s from NAS_PDU (UE RNTI=0x%04x)",
+                    ue_ip, UE->rnti);
+
+              // ✅ 存储映射关系
+              store_ue_ip_rnti_mapping(UE->rnti, ue_ip);
+              break;
+          }
+      }
+  }
+}
   if (!trigger_bearer_setup(rrc, UE, msg->nb_pdusessions_tosetup, to_setup, dl_ambr)) {
     // Reject PDU Session Resource setup if there's no CU-UP associated
     LOG_W(NR_RRC, "UE %d: reject PDU Session Setup in PDU Session Resource Setup Response\n", UE->rrc_ue_id);
