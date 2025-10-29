@@ -220,3 +220,135 @@ rrc_gNB_ue_context_t *rrc_gNB_create_ue_context(sctp_assoc_t assoc_id,
                ue->random_ue_identity);
   return ue_context_p;
 }
+// ==========================
+// 🎯 IP-RNTI 映射管理
+// ==========================
+
+#define MAX_IP_MAPPINGS 256
+
+typedef struct {
+    uint16_t rnti;
+    char ue_ip[16];  // 存储如 "10.0.1.2"
+    uint8_t pdu_session_id;
+    bool valid;
+} ip_rnti_mapping_t;
+
+static ip_rnti_mapping_t ip_mapping_table[MAX_IP_MAPPINGS];
+static pthread_mutex_t mapping_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+void store_ue_ip_rnti_mapping(uint16_t rnti, const char *ue_ip, uint8_t pdu_session_id)
+{
+    pthread_mutex_lock(&mapping_mutex);
+    
+    int free_slot = -1;
+    for (int i = 0; i < MAX_IP_MAPPINGS; i++) {
+        if (ip_mapping_table[i].valid) {
+            // 更新相同RNTI和Session的条目
+            if (ip_mapping_table[i].rnti == rnti && 
+                ip_mapping_table[i].pdu_session_id == pdu_session_id) {
+                strncpy(ip_mapping_table[i].ue_ip, ue_ip, sizeof(ip_mapping_table[i].ue_ip) - 1);
+                ip_mapping_table[i].ue_ip[sizeof(ip_mapping_table[i].ue_ip) - 1] = '\0';
+                
+                LOG_I(NR_RRC, "Updated IP mapping: RNTI=0x%04x -> IP=%s (Session=%d)", 
+                      rnti, ue_ip, pdu_session_id);
+                pthread_mutex_unlock(&mapping_mutex);
+                return;
+            }
+        } else if (free_slot == -1) {
+            free_slot = i;
+        }
+    }
+    
+    if (free_slot != -1) {
+        ip_mapping_table[free_slot].rnti = rnti;
+        strncpy(ip_mapping_table[free_slot].ue_ip, ue_ip, sizeof(ip_mapping_table[free_slot].ue_ip) - 1);
+        ip_mapping_table[free_slot].ue_ip[sizeof(ip_mapping_table[free_slot].ue_ip) - 1] = '\0';
+        ip_mapping_table[free_slot].pdu_session_id = pdu_session_id;
+        ip_mapping_table[free_slot].valid = true;
+        
+        LOG_I(NR_RRC, "Stored new IP mapping: RNTI=0x%04x -> IP=%s (Session=%d)", 
+              rnti, ue_ip, pdu_session_id);
+    } else {
+        LOG_E(NR_RRC, "IP mapping table full! Cannot store RNTI=0x%04x -> IP=%s", rnti, ue_ip);
+    }
+    
+    pthread_mutex_unlock(&mapping_mutex);
+}
+
+const char *find_ue_ip_by_rnti(uint16_t rnti, uint8_t pdu_session_id)
+{
+    pthread_mutex_lock(&mapping_mutex);
+    
+    for (int i = 0; i < MAX_IP_MAPPINGS; i++) {
+        if (ip_mapping_table[i].valid && 
+            ip_mapping_table[i].rnti == rnti && 
+            ip_mapping_table[i].pdu_session_id == pdu_session_id) {
+            pthread_mutex_unlock(&mapping_mutex);
+            return ip_mapping_table[i].ue_ip;
+        }
+    }
+    
+    pthread_mutex_unlock(&mapping_mutex);
+    return NULL;
+}
+
+uint16_t find_rnti_by_ue_ip(const char *ue_ip, uint8_t pdu_session_id)
+{
+    pthread_mutex_lock(&mapping_mutex);
+    
+    for (int i = 0; i < MAX_IP_MAPPINGS; i++) {
+        if (ip_mapping_table[i].valid && 
+            ip_mapping_table[i].pdu_session_id == pdu_session_id &&
+            strcmp(ip_mapping_table[i].ue_ip, ue_ip) == 0) {
+            pthread_mutex_unlock(&mapping_mutex);
+            return ip_mapping_table[i].rnti;
+        }
+    }
+    
+    pthread_mutex_unlock(&mapping_mutex);
+    return 0;
+}
+
+void remove_ue_ip_mapping(uint16_t rnti, uint8_t pdu_session_id)
+{
+    pthread_mutex_lock(&mapping_mutex);
+    
+    for (int i = 0; i < MAX_IP_MAPPINGS; i++) {
+        if (ip_mapping_table[i].valid && 
+            ip_mapping_table[i].rnti == rnti && 
+            ip_mapping_table[i].pdu_session_id == pdu_session_id) {
+            ip_mapping_table[i].valid = false;
+            LOG_I(NR_RRC, "Removed IP mapping: RNTI=0x%04x (Session=%d)", rnti, pdu_session_id);
+            break;
+        }
+    }
+    
+    pthread_mutex_unlock(&mapping_mutex);
+}
+
+void dump_ip_mapping_table(void)
+{
+    pthread_mutex_lock(&mapping_mutex);
+    
+    LOG_I(NR_RRC, "=== IP-RNTI Mapping Table ===");
+    int count = 0;
+    for (int i = 0; i < MAX_IP_MAPPINGS; i++) {
+        if (ip_mapping_table[i].valid) {
+            LOG_I(NR_RRC, "[%d] RNTI=0x%04x -> IP=%s (Session=%d)", 
+                  i, ip_mapping_table[i].rnti, ip_mapping_table[i].ue_ip, 
+                  ip_mapping_table[i].pdu_session_id);
+            count++;
+        }
+    }
+    LOG_I(NR_RRC, "Total mappings: %d", count);
+    
+    pthread_mutex_unlock(&mapping_mutex);
+}
+
+void init_ip_mapping_table(void)
+{
+    pthread_mutex_lock(&mapping_mutex);
+    memset(ip_mapping_table, 0, sizeof(ip_mapping_table));
+    pthread_mutex_unlock(&mapping_mutex);
+    LOG_I(NR_RRC, "IP mapping table initialized");
+}

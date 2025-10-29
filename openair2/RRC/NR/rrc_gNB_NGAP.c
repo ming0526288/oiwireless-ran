@@ -82,7 +82,6 @@
 #include "rrc_messages_types.h"
 #include "s1ap_messages_types.h"
 #include "uper_encoder.h"
-#include "openair3/NGAP/ngap_gNB_ue_context.h"
 #ifdef E2_AGENT
 #include "openair2/E2AP/RAN_FUNCTION/O-RAN/ran_func_rc_extern.h"
 #endif
@@ -861,11 +860,11 @@ for (int i = 0; i < msg->nb_pdusessions_tosetup; i++) {
                        buf[offset + 4],
                        buf[offset + 5],
                        buf[offset + 6]);
-              LOG_I(NR_RRC, "Extracted UE IP: %s from NAS_PDU (UE RNTI=0x%04x)",
-                    ue_ip, UE->rnti);
+              LOG_I(NR_RRC, "Extracted UE IP: %s from NAS_PDU (UE RNTI=0x%04x, Session=%d)",
+                    ue_ip, UE->rnti, pdu_item->pdusession_id);
 
-              // ✅ 存储映射关系
-              store_ue_ip_rnti_mapping(UE->rnti, ue_ip);
+              // ✅ 存储映射关系（添加Session ID）
+              store_ue_ip_rnti_mapping(UE->rnti, ue_ip, pdu_item->pdusession_id);
               break;
           }
       }

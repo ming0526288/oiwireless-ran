@@ -34,38 +34,6 @@
 #include "common/utils/T/T.h"
 #include "ngap_common.h"
 #include "tree.h"
-#include "ngap_gNB_defs.h"
-#include "assertions.h"
-#include "common/utils/LOG/log.h"
-
-ue_ip_map_t ue_ip_map_table[MAX_UE_NUM] = {0};
-
-void store_ue_ip_rnti_mapping(uint16_t rnti, const char *ue_ip) {
-    for (int i = 0; i < MAX_UE_NUM; i++) {
-        if (ue_ip_map_table[i].rnti == 0 || ue_ip_map_table[i].rnti == rnti) {
-            ue_ip_map_table[i].rnti = rnti;
-            strncpy(ue_ip_map_table[i].ue_ip, ue_ip, sizeof(ue_ip_map_table[i].ue_ip));
-            return;
-        }
-    }
-    LOG_W(NGAP, "UE IP mapping table full, cannot store mapping for RNTI 0x%04x", rnti);
-}
-
-const char *find_ue_ip_by_rnti(uint16_t rnti) {
-    for (int i = 0; i < MAX_UE_NUM; i++) {
-        if (ue_ip_map_table[i].rnti == rnti)
-            return ue_ip_map_table[i].ue_ip;
-    }
-    return NULL;
-}
-
-void dump_ue_ip_map_table(void) {
-    LOG_I(NGAP, "========== UE IP ↔ RNTI Mapping ==========");
-    for (int i = 0; i < MAX_UE_NUM; i++) {
-        if (ue_ip_map_table[i].rnti != 0)
-            LOG_I(NGAP, "RNTI: 0x%04x <--> IP: %s", ue_ip_map_table[i].rnti, ue_ip_map_table[i].ue_ip);
-    }
-}
 
 /* Tree of UE ordered by gNB_ue_ngap_id's
  * NO INSTANCE, the 32 bits id is large enough to handle all UEs, regardless the cell, gNB, ...

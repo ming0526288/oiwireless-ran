@@ -60,4 +60,13 @@ rrc_gNB_ue_context_t* rrc_gNB_create_ue_context(sctp_assoc_t assoc_id,
                                                 const uint64_t ue_identityP,
                                                 uint32_t du_ue_id);
 
+                                                // ==========================
+// IP-RNTI 映射管理函数
+// ==========================
+void store_ue_ip_rnti_mapping(uint16_t rnti, const char *ue_ip, uint8_t pdu_session_id);
+const char *find_ue_ip_by_rnti(uint16_t rnti, uint8_t pdu_session_id);
+uint16_t find_rnti_by_ue_ip(const char *ue_ip, uint8_t pdu_session_id);
+void remove_ue_ip_mapping(uint16_t rnti, uint8_t pdu_session_id);
+void dump_ip_mapping_table(void);
+void init_ip_mapping_table(void);
 #endif
