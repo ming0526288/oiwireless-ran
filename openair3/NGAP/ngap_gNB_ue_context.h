@@ -83,4 +83,25 @@ void ngap_store_ue_context(const ngap_gNB_ue_context_t *ue_desc_p);
 ngap_gNB_ue_context_t *ngap_get_ue_context(uint32_t gNB_ue_ngap_id);
 ngap_gNB_ue_context_t *ngap_detach_ue_context(uint32_t gNB_ue_ngap_id);
 
+/*---------------------------------------------------------------------------
+ * UE IP ? RNTI Mapping Utilities
+ *---------------------------------------------------------------------------*/
+
+typedef struct {
+    uint16_t rnti;
+    char     ue_ip[64];
+} ue_ip_map_t;
+
+#define MAX_UE_NUM 128
+
+extern ue_ip_map_t ue_ip_map_table[MAX_UE_NUM];
+
+/* Store or update mapping between RNTI and UE IP */
+void store_ue_ip_rnti_mapping(uint16_t rnti, const char *ue_ip);
+
+/* Optional: helper to print all mappings */
+void dump_ue_ip_map_table(void);
+
+/* Optional: lookup by RNTI */
+const char *find_ue_ip_by_rnti(uint16_t rnti);
 #endif /* NGAP_GNB_UE_CONTEXT_H_ */

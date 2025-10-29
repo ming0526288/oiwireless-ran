@@ -324,6 +324,18 @@ int nr_write_ce_dlsch_pdu(module_id_t module_idP,
   return offset;
 }
 
+static inline bool notifiedFIFO_nonempty(notifiedFIFO_t *nf)
+{
+  bool has = false;
+  // 仿照 pollNotifiedFIFO 的 trylock 用法，避免与生产者/消费者争锁
+  int tmp = mutextrylock(nf->lockF);
+  if (tmp != 0) return false;     // 拿不到锁，直接认为“未知/先不抢”，返回 false
+  has = (nf->outF != NULL);       // 只看，不动链表
+  mutexunlock(nf->lockF);
+  return has;
+}
+
+
 static void nr_store_dlsch_buffer(module_id_t module_id, frame_t frame, slot_t slot)
 {
   UE_iterator(RC.nrmac[module_id]->UE_info.connected_ue_list, UE) {
@@ -362,14 +374,24 @@ static void nr_store_dlsch_buffer(module_id_t module_id, frame_t frame, slot_t s
             sched_ctrl->num_total_bytes,
             sched_ctrl->dl_pdus_total,
             sched_ctrl->ta_apply ? "send":"do not send");
-        if (notifiedFIFO_has_data(&gnb_queue)) {
-          printf("gnb_queue non-empty -> trigger DL scheduling\n"); 
-          // 仅告知“有数据”，给一个最小触发量（比如 1 字节/1PDU），
-          // 让后续调度流程去实际抓包并决定TB大小。
-          sched_ctrl->num_total_bytes += 1;
-          sched_ctrl->dl_pdus_total   += 1;
-          LOG_I(NR_MAC, "[direct] UE %04x: gnb_queue non-empty -> trigger DL scheduling\n", UE->rnti);
-        }
+        // if (notifiedFIFO_has_data1(&gnb_queue)) {
+        //   printf("gnb_queue non-empty -> trigger DL scheduling\n"); 
+        //   // 仅告知“有数据”，给一个最小触发量（比如 1 字节/1PDU），
+        //   // 让后续调度流程去实际抓包并决定TB大小。
+        //   sched_ctrl->num_total_bytes += 1;
+        //   sched_ctrl->dl_pdus_total   += 1;
+        //   LOG_I(NR_MAC, "[direct] UE %04x: gnb_queue non-empty -> trigger DL scheduling\n", UE->rnti);
+        // }
+        if (notifiedFIFO_nonempty(&gnb_queue)) {
+  sched_ctrl->rlc_status[lcid].bytes_in_buffer += 1;
+  sched_ctrl->rlc_status[lcid].pdus_in_buffer  += 1;
+
+  // 再同步到 UE 级别合计
+  sched_ctrl->num_total_bytes += 1;
+  sched_ctrl->dl_pdus_total   += 1;
+
+  LOG_I(NR_MAC, "[direct] UE %04x: gnb_queue non-empty -> trigger DL scheduling\n", UE->rnti);
+}
     }
   }
     
