@@ -857,32 +857,30 @@ void rrc_gNB_process_NGAP_PDUSESSION_SETUP_REQ(MessageDef *msg_p, instance_t ins
           to_setup[i].pdusession_id,
           to_setup[i].pdu_session_type);
     LOG_I(NR_RRC,"mingmingmingming\n");
-               {
-            uint8_t offset = 0;
-            uint8_t *payload_container = to_setup[i].nas_pdu.buf;
-            offset += SECURITY_PROTECTED_5GS_NAS_MESSAGE_HEADER_LENGTH;
-            uint32_t payload_container_length = to_setup[i].nas_pdu.len;
-            if ((payload_container_length >= PAYLOAD_CONTAINER_LENGTH_MIN) 
-                &&(payload_container_length <= PAYLOAD_CONTAINER_LENGTH_MAX))
-              offset += (PLAIN_5GS_NAS_MESSAGE_HEADER_LENGTH + 3);
-            if (offset < NAS_CONN_ESTABLI_CNF(msg_p).nasMsg.length)
-              payload_container = payload_container + offset;
+    uint8_t offset = 0;
+    uint8_t *payload_container = to_setup[i].nas_pdu.buf;
+    offset += SECURITY_PROTECTED_5GS_NAS_MESSAGE_HEADER_LENGTH;
+    uint32_t payload_container_length = to_setup[i].nas_pdu.len;
+    if ((payload_container_length >= PAYLOAD_CONTAINER_LENGTH_MIN) 
+      &&(payload_container_length <= PAYLOAD_CONTAINER_LENGTH_MAX))
+      offset += (PLAIN_5GS_NAS_MESSAGE_HEADER_LENGTH + 3);
+    if (offset < NAS_CONN_ESTABLI_CNF(msg_p).nasMsg.length)
+      payload_container = payload_container + offset;
               
-            while (offset < payload_container_length) {
-              if (*(payload_container + offset) == 0x29) {                       // PDU address IEI
-                if ((*(payload_container + offset + 1) == 0x05) && (*(payload_container + offset + 2) == 0x01)) {    
-                  LOG_I(NAS,
-                      "PDU Session Setup Request NAS PDU, IP: %d.%d.%d.%d\n",
-                      *(payload_container + offset + 3),
-                      *(payload_container + offset + 4),
-                      *(payload_container + offset + 5),
-                      *(payload_container + offset + 6));
+    while (offset < payload_container_length) {
+      if (*(payload_container + offset) == 0x29) {                       // PDU address IEI
+        if ((*(payload_container + offset + 1) == 0x05) && (*(payload_container + offset + 2) == 0x01)) {    
+            LOG_I(NAS,
+                  "PDU Session Setup Request NAS PDU, IP: %d.%d.%d.%d\n",
+                  *(payload_container + offset + 3),
+                  *(payload_container + offset + 4),
+                  *(payload_container + offset + 5),
+                  *(payload_container + offset + 6));
                   break;
-                }
-              }
-              offset++;
-            }
-          }
+        }
+      }
+        offset++;
+    }
   }
 
   uint64_t dl_ambr = msg->has_ue_ambr ? msg->ueAggMaxBitRate.br_dl : 0;
