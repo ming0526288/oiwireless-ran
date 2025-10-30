@@ -49,6 +49,8 @@
 #include "openair2/SDAP/nr_sdap/nr_sdap.h"
 #include "common/utils/threadPool/notified_fifo.h"
 
+#include "openair3/NGAP/ngap_gNB_ue_context.h"
+
 ////////////////////////////////////////////////////////
 /////* DLSCH MAC PDU generation (6.1.2 TS 38.321) */////
 ////////////////////////////////////////////////////////
@@ -327,7 +329,7 @@ int nr_write_ce_dlsch_pdu(module_id_t module_idP,
   return offset;
 }
 
-#define DIRECT_QUEUE_PREVIEW_BYTES 16  // 直传队列日志时最多预览 16 字节
+// #define DIRECT_QUEUE_PREVIEW_BYTES 48  // 直传队列日志时最多预览 48 字节
 
 static bool direct_queue_peek(notifiedFIFO_t *nf,
                               uint32_t *payload_len,
@@ -367,42 +369,68 @@ static bool direct_queue_peek(notifiedFIFO_t *nf,
   return has;
 }
 
+static void direct_queue_len(notifiedFIFO_t *nf,
+                              uint32_t *payload_len
+)
+{
+
+
+  // 尝试加锁；加锁失败（队列繁忙）则直接返回 false
+  mutextrylock(nf->lockF);
+
+  // 取出队列头指针，队列为空则直接退出
+  notifiedFIFO_elt_t *head = nf->outF;
+  if (head != NULL) {
+    uint8_t *data = (uint8_t *)NotifiedFifoData(head);  // 指向元素的有效负载
+    uint32_t len = 0;
+    memcpy(&len, data, sizeof(uint32_t));               // 负载前 4 字节为长度字段
+
+    if (payload_len != NULL)
+      *payload_len = len;                               // 返回队列首包的长度
+
+  }
+
+  mutexunlock(nf->lockF);  // 解锁队列互斥量
+}
+
 static void nr_store_dlsch_buffer(module_id_t module_id, frame_t frame, slot_t slot)
 {
   uint32_t direct_payload_len = 0;                 // 直传队列首包的长度
-  uint8_t direct_preview[DIRECT_QUEUE_PREVIEW_BYTES]; // 用于保存直传数据的预览内容
+  direct_queue_len(&gnb_queue, &direct_payload_len);
+  uint8_t direct_preview[direct_payload_len]; // 用于保存直传数据的预览内容
   bool direct_pending = direct_queue_peek(&gnb_queue,
                                           &direct_payload_len,
                                           direct_preview,
                                           sizeof(direct_preview)); // 探测队列是否有数据并填充长度与预览
 
   if (direct_pending) { // 队列非空
-    size_t preview_len = direct_payload_len < (uint32_t)sizeof(direct_preview)
-                           ? (size_t)direct_payload_len
-                           : sizeof(direct_preview);                 // 取预览字节数（不超过缓冲区）
-    char preview_hex[3 * DIRECT_QUEUE_PREVIEW_BYTES + 1];            // 十六进制打印缓冲：每字节两位 + 空格
-    preview_hex[0] = '\0';
-    size_t offset = 0;
+    log_dump(NR_MAC, direct_preview, direct_payload_len, LOG_DUMP_CHAR, "\n");
+    // size_t preview_len = direct_payload_len < (uint32_t)sizeof(direct_preview)
+    //                        ? (size_t)direct_payload_len
+    //                        : sizeof(direct_preview);                 // 取预览字节数（不超过缓冲区）
+    // char preview_hex[3 * direct_payload_len + 1];            // 十六进制打印缓冲：每字节两位 + 空格
+    // preview_hex[0] = '\0';
+    // size_t offset = 0;
 
-    for (size_t i = 0; i < preview_len && offset + 1 < sizeof(preview_hex); ++i) {
-      int written = snprintf(preview_hex + offset,                 // 将预览字节格式化为十六进制字符串
-                             sizeof(preview_hex) - offset,
-                             "%02X%s",
-                             direct_preview[i],
-                             (i + 1 < preview_len) ? " " : "");
-      if (written <= 0)
-        break;                                                     // 写入失败则停止
-      offset += (size_t)written;
-    }
+    // for (size_t i = 0; i < preview_len && offset + 1 < sizeof(preview_hex); ++i) {
+    //   int written = snprintf(preview_hex + offset,                 // 将预览字节格式化为十六进制字符串
+    //                          sizeof(preview_hex) - offset,
+    //                          "%02X%s",
+    //                          direct_preview[i],
+    //                          (i + 1 < preview_len) ? " " : "");
+    //   if (written <= 0)
+    //     break;                                                     // 写入失败则停止
+    //   offset += (size_t)written;
+    // }
 
-    LOG_I(NR_MAC,
-          "[direct][gNB %d][%4d.%2d] direct queue pending %u bytes, preview(%zu)=%s\n",
-          module_id,
-          frame,
-          slot,
-          direct_payload_len,
-          preview_len,
-          preview_len > 0 ? preview_hex : "<empty>");              // 记录队列长度与预览内容
+    // LOG_I(NR_MAC,
+    //       "[direct][gNB %d][%4d.%2d] direct queue pending %u bytes, preview(%zu)=%s\n",
+    //       module_id,
+    //       frame,
+    //       slot,
+    //       direct_payload_len,
+    //       preview_len,
+    //       preview_len > 0 ? preview_hex : "<empty>");              // 记录队列长度与预览内容
   } else {
     LOG_D(NR_MAC,
           "[direct][gNB %d][%4d.%2d] direct queue empty\n",
@@ -1156,6 +1184,9 @@ void nr_schedule_ue_spec(module_id_t module_id,
 
     const rnti_t rnti = UE->rnti;
 
+    // const char *ue_ip = find_ue_ip_by_rnti((uint16_t)UE->rnti);
+    // LOG_I(NR_MAC, "[NR-MAC][UE-IP] UE IP=%s\n", ue_ip);
+
     /* POST processing */
     const uint8_t nrOfLayers = sched_pdsch->nrOfLayers;
     const uint32_t TBS = sched_pdsch->tb_size;
@@ -1450,6 +1481,59 @@ void nr_schedule_ue_spec(module_id_t module_id,
       }
 
       stop_meas(&gNB_mac->rlc_data_req);
+
+      // while(bufEnd-buf > 0) {
+      //   uint32_t qlen = 0;
+      //   if(!direct_queue_peek(&gnb_queue, &qlen, NULL, 0))
+      //     break;
+      //   if(qlen == 0)
+      //     break;
+        
+      //   tbs_size_t room = (tbs_size_t)(bufEnd - buf - sizeof(NR_MAC_SUBHEADER_LONG));
+      //   if(room < (tbs_size_t)qlen)
+      //     break;
+
+      //   notifiedFIFO_elt_t *elt = pullNotifiedFIFO(&gnb_queue);
+      //   if(!elt) {
+      //     break;
+      //   }
+
+      //   uint8_t *p = (uint8_t *)NotifiedFifoData(elt);
+      //   uint32_t dlen = 0;
+      //   memcpy(&dlen, p, sizeof(uint32_t));
+      //   uint8_t *pdata = p + sizeof(uint32_t);
+
+      //   if(dlen == 0 || (tbs_size_t)dlen > room) {
+      //     delNotifiedFIFO_elt(elt);
+      //     break;
+      //   }
+
+      //   NR_MAC_SUBHEADER_LONG *header = (NR_MAC_SUBHEADER_LONG *) buf;
+      //   // fill dlsch_buffer with random data
+      //   header->R = 0;
+      //   header->F = 1;
+      //   header->LCID = DL_SCH_LCID_PADDING;
+      //   buf += sizeof(NR_MAC_SUBHEADER_LONG);
+      //   header->L = htons(dlen);
+
+      //   memcpy(buf, pdata, dlen);
+      //   buf += dlen;
+
+      //   dlsch_total_bytes += dlen;
+      //   sdus +=1;
+      //   if(DL_SCH_LCID_PADDING < (int)(sizeof(UE->mac_stats.dl.lc_bytes)/sizeof(UE->mac_stats.dl.lc_bytes[0])))
+      //     UE->mac_stats.dl.lc_bytes[DL_SCH_LCID_PADDING] += dlen;
+
+      //   LOG_I(NR_MAC,"mingmingmingming\n");
+      //   LOG_I(NR_MAC,
+      //         "%4d.%2d RNTI %04x: %d bytes from external source (padding) (remaining size %ld)\n",
+      //         frame,
+      //         slot,
+      //         rnti,
+      //         dlen,
+      //         bufEnd-buf);
+      //   delNotifiedFIFO_elt(elt);
+      // }
 
       // Add padding header and zero rest out if there is space left
       if (bufEnd-buf > 0) {
