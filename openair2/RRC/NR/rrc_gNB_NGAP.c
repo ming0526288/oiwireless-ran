@@ -772,45 +772,8 @@ static void send_ngap_pdu_session_setup_resp_fail(instance_t instance, ngap_pdus
 #ifndef PLAIN_5GS_NAS_MESSAGE_HEADER_LENGTH
 #define PLAIN_5GS_NAS_MESSAGE_HEADER_LENGTH 3
 #endif
-
-static bool extract_ipv4_from_pdu_sess_accept(const uint8_t *pdu, size_t len, uint32_t *ipv4_host)
-{
-  if (!pdu || len < SECURITY_PROTECTED_5GS_NAS_MESSAGE_HEADER_LENGTH + PLAIN_5GS_NAS_MESSAGE_HEADER_LENGTH + 3)
-    return false;
-
-  size_t off = 0;
-
-  // 跳过 5GS NAS 安全保护头
-  off += SECURITY_PROTECTED_5GS_NAS_MESSAGE_HEADER_LENGTH;
-
-  // DL NAS Transport 的 plain header（EPD + sec hdr type(=0) + msg type）
-  off += PLAIN_5GS_NAS_MESSAGE_HEADER_LENGTH;
-
-  // payload_container_type(1) + payload_container_length(2)
-  if (off + 3 > len) return false;
-  uint8_t  pc_type = pdu[off];          // 不强依赖其值
-  (void)pc_type;
-  uint16_t pc_len = (uint16_t)pdu[off+1] << 8 | (uint16_t)pdu[off+2];
-  off += 3;
-
-  if (off + pc_len > len) return false;
-
-  // 现在从 payload container 起点用 pos 扫描
-  const uint8_t *pl = pdu + off;
-  size_t pl_len = pc_len;
-
-  for (size_t pos = 0; pos + 6 < pl_len; ++pos) {
-    // IEI = 0x29 (PDU Address)，接着是 length(=5)，type(=1, IPv4)，然后 4 字节 IPv4
-    if (pl[pos] == 0x29) {
-      if (pos + 7 <= pl_len && pl[pos+1] == 0x05 && pl[pos+2] == 0x01) {
-        uint8_t a = pl[pos+3], b = pl[pos+4], c = pl[pos+5], d = pl[pos+6];
-        *ipv4_host = ((uint32_t)a << 24) | ((uint32_t)b << 16) | ((uint32_t)c << 8) | (uint32_t)d;
-        return true;
-      }
-    }
-  }
-  return false;
-}
+#define PAYLOAD_CONTAINER_LENGTH_MIN 3
+#define PAYLOAD_CONTAINER_LENGTH_MAX 65537
 
 void rrc_gNB_process_NGAP_PDUSESSION_SETUP_REQ(MessageDef *msg_p, instance_t instance)
 {
@@ -888,45 +851,40 @@ void rrc_gNB_process_NGAP_PDUSESSION_SETUP_REQ(MessageDef *msg_p, instance_t ins
 
   pdusession_t to_setup[NGAP_MAX_PDU_SESSION] = {0};
   for (int i = 0; i < msg->nb_pdusessions_tosetup; ++i){
-    const pdusession_resource_item_t *pdu_item = &msg->pdusession[i];
-    cp_pdusession_resource_item_to_pdusession(&to_setup[i],pdu_item);
-
-    const uint8_t *nas = NULL;
-    size_t nas_len = 0;
-
-    nas = pdu_item->nas_pdu.buf;
-    nas_len = pdu_item->nas_pdu.len;
-
-    if (nas && nas_len > SECURITY_PROTECTED_5GS_NAS_MESSAGE_HEADER_LENGTH + PLAIN_5GS_NAS_MESSAGE_HEADER_LENGTH + 3){
-      uint32_t ipv4_host = 0;
-      if (extract_ipv4_from_pdu_sess_accept(nas, nas_len, &ipv4_host)){
-        LOG_I(NR_RRC, "UE %d: extracted IPv4 address %u.%u.%u.%u from PDU Session Accept NAS message\n",
-              UE->rrc_ue_id,
-              (ipv4_host >> 24) & 0xFF,
-              (ipv4_host >> 16) & 0xFF,
-              (ipv4_host >> 8) & 0xFF,
-              (ipv4_host >> 0) & 0xFF);
-      } else {
-        LOG_W(NR_RRC, "UE %d: failed to extract IPv4 address from PDU Session Accept NAS message\n", UE->rrc_ue_id);
-      }
-      
-    }
-
-
+    cp_pdusession_resource_item_to_pdusession(&to_setup[i], &msg->pdusession[i]);
+    LOG_I(NR_RRC, "UE %d: PDU Session to setup: ID=%d, Type=%d\n",
+          UE->rrc_ue_id,
+          to_setup[i].pdusession_id,
+          to_setup[i].pdu_session_type);
+    LOG_I(NR_RRC,"mingmingmingming");
+               {
+            uint8_t offset = 0;
+            uint8_t *payload_container = to_setup[i].nas_pdu.buf;
+            offset += SECURITY_PROTECTED_5GS_NAS_MESSAGE_HEADER_LENGTH;
+            uint32_t payload_container_length = to_setup[i].nas_pdu.len;
+            if ((payload_container_length >= PAYLOAD_CONTAINER_LENGTH_MIN) 
+                &&(payload_container_length <= PAYLOAD_CONTAINER_LENGTH_MAX))
+              offset += (PLAIN_5GS_NAS_MESSAGE_HEADER_LENGTH + 3);
+            if (offset < NAS_CONN_ESTABLI_CNF(msg_p).nasMsg.length)
+              payload_container = payload_container + offset;
+              
+            while (offset < payload_container_length) {
+              if (*(payload_container + offset) == 0x29) {                       // PDU address IEI
+                if ((*(payload_container + offset + 1) == 0x05) && (*(payload_container + offset + 2) == 0x01)) {    
+                  LOG_I(NAS,
+                      "Received PDU Session Establishment Accept, IP: %d.%d.%d.%d\n",
+                      *(payload_container + offset + 3),
+                      *(payload_container + offset + 4),
+                      *(payload_container + offset + 5),
+                      *(payload_container + offset + 6));
+                  break;
+                }
+              }
+              offset++;
+            }
+          }
   }
-
-
-  // for (int i = 0; i < msg->nb_pdusessions_tosetup; ++i){
-  //   const pdusession_resource_item_t *pdu_item = &msg->pdusession[i];
-
-  //   if (pdu_item->nas_pdu.len > 0 && pdu_item->nas_pdu.buf != NULL){
-      
-  //   }
-  // }
-   
             
-
-          
   uint64_t dl_ambr = msg->has_ue_ambr ? msg->ueAggMaxBitRate.br_dl : 0;
 
   if (!trigger_bearer_setup(rrc, UE, msg->nb_pdusessions_tosetup, to_setup, dl_ambr)) {
