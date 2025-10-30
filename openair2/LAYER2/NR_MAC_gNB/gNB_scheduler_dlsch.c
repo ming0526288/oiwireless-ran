@@ -36,6 +36,9 @@
 #include "LAYER2/NR_MAC_gNB/mac_proto.h"
 #include "openair2/LAYER2/nr_rlc/nr_rlc_oai_api.h"
 
+#include <stdio.h>
+#include <string.h>
+
 /*TAG*/
 #include "NR_TAG-Id.h"
 
@@ -324,8 +327,90 @@ int nr_write_ce_dlsch_pdu(module_id_t module_idP,
   return offset;
 }
 
+#define DIRECT_QUEUE_PREVIEW_BYTES 16  // 直传队列日志时最多预览 16 字节
+
+static bool direct_queue_peek(notifiedFIFO_t *nf,
+                              uint32_t *payload_len,
+                              uint8_t *preview,
+                              size_t preview_len)
+{
+  // 如果调用方提供了预览缓冲，先清零，避免残留旧数据
+  if (preview != NULL && preview_len > 0)
+    memset(preview, 0, preview_len);
+
+  bool has = false;
+
+  // 尝试加锁；加锁失败（队列繁忙）则直接返回 false
+  int tmp = mutextrylock(nf->lockF);
+  if (tmp != 0)
+    return false;
+
+  // 取出队列头指针，队列为空则直接退出
+  notifiedFIFO_elt_t *head = nf->outF;
+  if (head != NULL) {
+    uint8_t *data = (uint8_t *)NotifiedFifoData(head);  // 指向元素的有效负载
+    uint32_t len = 0;
+    memcpy(&len, data, sizeof(uint32_t));               // 负载前 4 字节为长度字段
+
+    if (payload_len != NULL)
+      *payload_len = len;                               // 返回队列首包的长度
+
+    if (preview != NULL && preview_len > 0) {
+      size_t to_copy = len < preview_len ? len : preview_len;
+      memcpy(preview, data + sizeof(uint32_t), to_copy); // 拷贝前 to_copy 字节供日志预览
+    }
+
+    has = true;  // 标记队列非空
+  }
+
+  mutexunlock(nf->lockF);  // 解锁队列互斥量
+  return has;
+}
+
 static void nr_store_dlsch_buffer(module_id_t module_id, frame_t frame, slot_t slot)
 {
+  uint32_t direct_payload_len = 0;                 // 直传队列首包的长度
+  uint8_t direct_preview[DIRECT_QUEUE_PREVIEW_BYTES]; // 用于保存直传数据的预览内容
+  bool direct_pending = direct_queue_peek(&gnb_queue,
+                                          &direct_payload_len,
+                                          direct_preview,
+                                          sizeof(direct_preview)); // 探测队列是否有数据并填充长度与预览
+
+  if (direct_pending) { // 队列非空
+    size_t preview_len = direct_payload_len < (uint32_t)sizeof(direct_preview)
+                           ? (size_t)direct_payload_len
+                           : sizeof(direct_preview);                 // 取预览字节数（不超过缓冲区）
+    char preview_hex[3 * DIRECT_QUEUE_PREVIEW_BYTES + 1];            // 十六进制打印缓冲：每字节两位 + 空格
+    preview_hex[0] = '\0';
+    size_t offset = 0;
+
+    for (size_t i = 0; i < preview_len && offset + 1 < sizeof(preview_hex); ++i) {
+      int written = snprintf(preview_hex + offset,                 // 将预览字节格式化为十六进制字符串
+                             sizeof(preview_hex) - offset,
+                             "%02X%s",
+                             direct_preview[i],
+                             (i + 1 < preview_len) ? " " : "");
+      if (written <= 0)
+        break;                                                     // 写入失败则停止
+      offset += (size_t)written;
+    }
+
+    LOG_I(NR_MAC,
+          "[direct][gNB %d][%4d.%2d] direct queue pending %u bytes, preview(%zu)=%s\n",
+          module_id,
+          frame,
+          slot,
+          direct_payload_len,
+          preview_len,
+          preview_len > 0 ? preview_hex : "<empty>");              // 记录队列长度与预览内容
+  } else {
+    LOG_D(NR_MAC,
+          "[direct][gNB %d][%4d.%2d] direct queue empty\n",
+          module_id,
+          frame,
+          slot);                                                    // 队列为空时输出调试信息
+  }
+
   UE_iterator(RC.nrmac[module_id]->UE_info.connected_ue_list, UE) {
     NR_UE_sched_ctrl_t *sched_ctrl = &UE->UE_sched_ctrl; // 取出UE的调度控制结构。里面会放每条LC的RLC缓冲状态、累积的总字节数、总PDU数
     sched_ctrl->num_total_bytes = 0; // 初始化总字节数为0
@@ -362,14 +447,14 @@ static void nr_store_dlsch_buffer(module_id_t module_id, frame_t frame, slot_t s
             sched_ctrl->num_total_bytes,
             sched_ctrl->dl_pdus_total,
             sched_ctrl->ta_apply ? "send":"do not send");
-        if (notifiedFIFO_has_data(&gnb_queue)) {
+        /* if (notifiedFIFO_has_data(&gnb_queue)) {
           printf("gnb_queue non-empty -> trigger DL scheduling\n"); 
           // 仅告知“有数据”，给一个最小触发量（比如 1 字节/1PDU），
           // 让后续调度流程去实际抓包并决定TB大小。
           sched_ctrl->num_total_bytes += 1;
           sched_ctrl->dl_pdus_total   += 1;
           LOG_I(NR_MAC, "[direct] UE %04x: gnb_queue non-empty -> trigger DL scheduling\n", UE->rnti);
-        }
+        } */
     }
   }
     
