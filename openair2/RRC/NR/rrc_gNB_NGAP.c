@@ -872,7 +872,7 @@ void rrc_gNB_process_NGAP_PDUSESSION_SETUP_REQ(MessageDef *msg_p, instance_t ins
               if (*(payload_container + offset) == 0x29) {                       // PDU address IEI
                 if ((*(payload_container + offset + 1) == 0x05) && (*(payload_container + offset + 2) == 0x01)) {    
                   LOG_I(NAS,
-                      "Received PDU Session Establishment Accept, IP: %d.%d.%d.%d\n",
+                      "PDU Session Setup Request NAS PDU, IP: %d.%d.%d.%d\n",
                       *(payload_container + offset + 3),
                       *(payload_container + offset + 4),
                       *(payload_container + offset + 5),
