@@ -856,7 +856,7 @@ void rrc_gNB_process_NGAP_PDUSESSION_SETUP_REQ(MessageDef *msg_p, instance_t ins
           UE->rrc_ue_id,
           to_setup[i].pdusession_id,
           to_setup[i].pdu_session_type);
-    LOG_I(NR_RRC,"mingmingmingming");
+    LOG_I(NR_RRC,"mingmingmingming\n");
                {
             uint8_t offset = 0;
             uint8_t *payload_container = to_setup[i].nas_pdu.buf;
@@ -884,7 +884,7 @@ void rrc_gNB_process_NGAP_PDUSESSION_SETUP_REQ(MessageDef *msg_p, instance_t ins
             }
           }
   }
-            
+
   uint64_t dl_ambr = msg->has_ue_ambr ? msg->ueAggMaxBitRate.br_dl : 0;
 
   if (!trigger_bearer_setup(rrc, UE, msg->nb_pdusessions_tosetup, to_setup, dl_ambr)) {
