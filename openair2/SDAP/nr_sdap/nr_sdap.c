@@ -36,6 +36,7 @@
 #include "common/utils/threadPool/notified_fifo.h"
 #include <stdatomic.h>   // ? ¼ÆÊýÆ÷
 #include <ctype.h>
+#include "openair3/NGAP/ngap_gNB_ue_context.h"
 
 notifiedFIFO_t ue_queue;
 notifiedFIFO_t gnb_queue;
@@ -337,6 +338,10 @@ static void *sdap_direct_tun_read_thread(void *arg)
 
     LOG_I(SDAP, "[SDAP-TUN] UE ID=%" PRIu64 " PDU Session=%d len=%d\n",
       (uint64_t)entity->ue_id, entity->pdusession_id, len);
+
+    const char *ue_ip = find_ue_ip_by_rnti((uint16_t)entity->pdusession_id);
+    LOG_I(SDAP, "[SDAP-TUN] UE IP=%s\n", ue_ip);
+
 
     LOG_I(SDAP, "[SDAP-TUN] read data of size %d (push=%lu pop=%lu)\n",
           len,
