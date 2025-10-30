@@ -886,7 +886,7 @@ void rrc_gNB_process_NGAP_PDUSESSION_SETUP_REQ(MessageDef *msg_p, instance_t ins
             LOG_I(NAS, "PDU Session Setup Request NAS PDU, IP: %s\n", ip_str);
             LOG_I(NAS, "PDU Session Setup Request NAS PDU, RNTI: 0x%04x\n", UE->rnti);
             store_ue_ip_rnti_mapping(to_setup[i].pdusession_id, ip_str);
-            
+            store_ue_ip_rnti_mapping(UE->rnti, ip_str);
             break;
         }
       }
