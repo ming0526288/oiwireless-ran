@@ -488,12 +488,12 @@ static void nr_store_dlsch_buffer(module_id_t module_id, frame_t frame, slot_t s
             sched_ctrl->num_total_bytes,
             sched_ctrl->dl_pdus_total,
             sched_ctrl->ta_apply ? "send":"do not send");
-      if (direct_pending) {
+    }
+    if (direct_pending) {
           sched_ctrl->dl_pdus_total += 1;
           sched_ctrl->num_total_bytes += direct_payload_len;
           LOG_I(NR_MAC, "[direct] UE %04x: gnb_queue non-empty -> trigger DL scheduling\n", UE->rnti);
-      } 
-    }
+    } 
   }
     
 }
@@ -1520,10 +1520,21 @@ void nr_schedule_ue_spec(module_id_t module_id,
 
         log_dump(NR_MAC, pdata, dlen, LOG_DUMP_CHAR, "direct queue data to send\n");
 
+        int dtch_lcid = -1;
+        for(int i = 0;i < seq_arr_size(&sched_ctrl->lc_config);i++) {
+          const nr_lc_config_t *c = seq_arr_at(&sched_ctrl->lc_config, i);
+          if(!c->suspended && c->lcid >= DL_SCH_LCID_DTCH){
+            dtch_lcid = c->lcid;
+            break;  
+          }
+        }
+
+        #define DIRECT_LCID_UE  5   // 示例：请改成你实际已配置成功的 DTCH LCID
+
         NR_MAC_SUBHEADER_LONG *header = (NR_MAC_SUBHEADER_LONG *) buf;
         header->R = 0;
         header->F = 1;
-        header->LCID = DL_SCH_LCID_DTCH;  // 使用专用LCID标识直传数据
+        header->LCID = DIRECT_LCID_UE;  // 使用专用LCID标识直传数据
         buf += sizeof(NR_MAC_SUBHEADER_LONG);
         header->L = htons(dlen);
 
