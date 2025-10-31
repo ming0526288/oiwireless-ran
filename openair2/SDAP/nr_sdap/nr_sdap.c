@@ -160,35 +160,35 @@ static void *sdap_ue_fifo_consumer(void *arg)
   return NULL;
 }
 
-static void *sdap_gnb_fifo_consumer(void *arg)
-{
-  (void)arg;
-  LOG_I(SDAP, "[FIFO] consumer thread started\n");
-  for (;;) {
-    notifiedFIFO_elt_t *elt = pullNotifiedFIFO(&gnb_queue); // 阻塞等待
-    if (!elt) continue;
+// static void *sdap_gnb_fifo_consumer(void *arg)
+// {
+//   (void)arg;
+//   LOG_I(SDAP, "[FIFO] consumer thread started\n");
+//   for (;;) {
+//     notifiedFIFO_elt_t *elt = pullNotifiedFIFO(&gnb_queue); // 阻塞等待
+//     if (!elt) continue;
 
-    // 取指针+长度（不同分支：有的是宏，有的是结构成员）
-    uint8_t *p = (uint8_t*)NotifiedFifoData(elt);
-    uint32_t  nlen = 0;
-    memcpy(&nlen, p, sizeof(uint32_t));
-    uint8_t  *data = p + sizeof(uint32_t);
+//     // 取指针+长度（不同分支：有的是宏，有的是结构成员）
+//     uint8_t *p = (uint8_t*)NotifiedFifoData(elt);
+//     uint32_t  nlen = 0;
+//     memcpy(&nlen, p, sizeof(uint32_t));
+//     uint8_t  *data = p + sizeof(uint32_t);
 
-    // char hex[3*nlen+1]; // 你要把 nlen 个字节的二进制数据，用十六进制字符串打印出来，每个字节会变成 2 个十六进制字符 + 1 个空格，整串末尾还要一个 '\0' 作为 C 字符串结束符
-    // for (int i = 0; i < nlen; i++) sprintf(hex + 3*i, "%02X ", data[i]); // 用sprintf把每个字节格式化成十六进制字符串，"%02X " → 2 个十六进制位 + 1 个空格
-    // if (nlen > 0) hex[3*nlen-1] = '\0'; else hex[0] = '\0'; //把最后一个空格替换成 '\0'，这样日志里不会多出收尾空格。
+//     // char hex[3*nlen+1]; // 你要把 nlen 个字节的二进制数据，用十六进制字符串打印出来，每个字节会变成 2 个十六进制字符 + 1 个空格，整串末尾还要一个 '\0' 作为 C 字符串结束符
+//     // for (int i = 0; i < nlen; i++) sprintf(hex + 3*i, "%02X ", data[i]); // 用sprintf把每个字节格式化成十六进制字符串，"%02X " → 2 个十六进制位 + 1 个空格
+//     // if (nlen > 0) hex[3*nlen-1] = '\0'; else hex[0] = '\0'; //把最后一个空格替换成 '\0'，这样日志里不会多出收尾空格。
 
-    unsigned long pops = atomic_fetch_add_explicit(&ipq_pop_cnt, 1, memory_order_relaxed) + 1;
-    LOG_I(SDAP, "[FIFO] pop#%lu len=%u\n", pops, nlen);
-    // LOG_I(SDAP, "%s\n", hex);
+//     unsigned long pops = atomic_fetch_add_explicit(&ipq_pop_cnt, 1, memory_order_relaxed) + 1;
+//     LOG_I(SDAP, "[FIFO] pop#%lu len=%u\n", pops, nlen);
+//     // LOG_I(SDAP, "%s\n", hex);
 
-    // log_dump(SDAP, data, nlen, LOG_DUMP_C16, "\n");
-    log_dump(SDAP, data, nlen, LOG_DUMP_CHAR, "\n");
+//     // log_dump(SDAP, data, nlen, LOG_DUMP_C16, "\n");
+//     log_dump(SDAP, data, nlen, LOG_DUMP_CHAR, "\n");
 
-    delNotifiedFIFO_elt(elt);
-  }
-  return NULL;
-}
+//     delNotifiedFIFO_elt(elt);
+//   }
+//   return NULL;
+// }
 
 // 辅助函数：只启动一次消费者线程
 static inline void maybe_start_ue_ipq_consumer(void)
@@ -200,14 +200,14 @@ static inline void maybe_start_ue_ipq_consumer(void)
   }
 }
 
-static inline void maybe_start_gnb_ipq_consumer(void)
-{
-  if (!ipq_consumer_started) {
-    threadCreate(&ipq_consumer_th, sdap_gnb_fifo_consumer, NULL,
-                 "sdap_gnb_fifo_consumer", -1, OAI_PRIORITY_RT_LOW);
-    ipq_consumer_started = true;
-  }
-}
+// static inline void maybe_start_gnb_ipq_consumer(void)
+// {
+//   if (!ipq_consumer_started) {
+//     threadCreate(&ipq_consumer_th, sdap_gnb_fifo_consumer, NULL,
+//                  "sdap_gnb_fifo_consumer", -1, OAI_PRIORITY_RT_LOW);
+//     ipq_consumer_started = true;
+//   }
+// }
 
 static void *sdap_tun_read_thread(void *arg)
 {
@@ -387,7 +387,7 @@ void start_sdap_tun_gnb_first_ue_default_pdu_session(ue_id_t ue_id)
 void start_direct_sdap_tun_gnb_first_ue_default_pdu_session(ue_id_t ue_id)
 {
   ipq_gnb_init_once();  //队列初始化（仅执行一次）
-  maybe_start_gnb_ipq_consumer();//启动消费者线程（只启动一次），进行测试打印队列内容
+  // maybe_start_gnb_ipq_consumer();//启动消费者线程（只启动一次），进行测试打印队列内容
   nr_sdap_entity_t *entity = nr_sdap_get_entity(ue_id, get_softmodem_params()->default_pdu_session_id);
   DevAssert(entity != NULL);
   DevAssert(entity->is_gnb);//启动基站侧的虚拟网卡
