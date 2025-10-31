@@ -40,6 +40,10 @@
 /* RRC*/
 #include "RRC/NR_UE/L2_interface_ue.h"
 
+/* SDAP TUN*/
+#include "openair2/SDAP/nr_sdap/nr_sdap_entity.h"
+#include "openair2/SDAP/nr_sdap/nr_sdap.h"
+
 /* MAC */
 #include "NR_MAC_COMMON/nr_mac.h"
 #include "NR_MAC_UE/mac_proto.h"
@@ -3917,13 +3921,29 @@ static void nr_ue_process_mac_pdu(NR_UE_MAC_INST_t *mac, nr_downlink_indication_
           LOG_W(NR_MAC, "Received PDU for a suspended RB, corresponding to LCID %d. Dropping it.\n", rx_lcid);
           break;
         }
-        #define DIRECT_LCID_UE  33
-        if (rx_lcid == DIRECT_LCID_UE) {
-          LOG_I(NR_MAC,"[UE %d][%d.%d] DIRECT-LCID %d: deliver %u bytes to TUN/queue (bypass RLC)\n",
-          mac->ue_id, frameP, slot, rx_lcid, mac_len);
+        
+        char *payload = (char *)(pduP + mac_subheader_len);
+        int plen = (int)mac_len;
+
+        int pdusession_id = get_softmodem_params()->default_pdu_session_id;
+        nr_sdap_entity_t *ent = nr_sdap_get_entity(mac->ue_id, pdusession_id);
+        if(!ent){
+          LOG_I(NR_MAC, "SDAP entity for PDU session %d\n", pdusession_id);
           break;
         }
-
+        
+        rb_id_t fake_drb = 1; // ռλ
+        ent->rx_entity(ent, 
+                          fake_drb, 
+                          0,
+                          false,
+                          pdusession_id,
+                          mac->ue_id,
+                          payload, 
+                          plen);
+        LOG_I(NR_MAC,"[UE %d][%d.%d] DIRECT-LCID %d: deliver %u bytes to TUN/queue (bypass RLC)\n",
+        mac->ue_id, frameP, slot, rx_lcid, mac_len);
+        break;
       default:
         LOG_W(MAC, "unknown lcid %02x\n", rx_lcid);
         break;
