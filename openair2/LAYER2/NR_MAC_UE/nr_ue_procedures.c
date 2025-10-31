@@ -3906,18 +3906,24 @@ static void nr_ue_process_mac_pdu(NR_UE_MAC_INST_t *mac, nr_downlink_indication_
           LOG_W(NR_MAC, "Received PDU for a suspended RB, corresponding to LCID %d. Dropping it.\n", rx_lcid);
           break;
         }
-
-        #define DIRECT_LCID_UE  5
-
-        if (rx_lcid == DIRECT_LCID_UE) {
-          LOG_I(NR_MAC,"[UE %d][%d.%d] DIRECT-LCID %d: deliver %u bytes to TUN/queue (bypass RLC)\n",
-          mac->ue_id, frameP, slot, rx_lcid, mac_len);
-
-          break;
-        }
         LOG_D(NR_MAC, "%4d.%2d : DLSCH -> LCID %d %d bytes\n", frameP, slot, rx_lcid, mac_len);
         nr_mac_rlc_data_ind(mac->ue_id, mac->ue_id, false, rx_lcid, (char *)(pduP + mac_subheader_len), mac_len);
         break;
+      case 33:
+        if (!get_mac_len(pduP, pdu_len, &mac_len, &mac_subheader_len))
+          return;
+        // discard the received subPDU if RB is suspended
+        if (is_lcid_suspended(mac, rx_lcid)) {
+          LOG_W(NR_MAC, "Received PDU for a suspended RB, corresponding to LCID %d. Dropping it.\n", rx_lcid);
+          break;
+        }
+        #define DIRECT_LCID_UE  33
+        if (rx_lcid == DIRECT_LCID_UE) {
+          LOG_I(NR_MAC,"[UE %d][%d.%d] DIRECT-LCID %d: deliver %u bytes to TUN/queue (bypass RLC)\n",
+          mac->ue_id, frameP, slot, rx_lcid, mac_len);
+          break;
+        }
+
       default:
         LOG_W(MAC, "unknown lcid %02x\n", rx_lcid);
         break;

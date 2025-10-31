@@ -418,32 +418,32 @@ static void nr_store_dlsch_buffer(module_id_t module_id, frame_t frame, slot_t s
   // if (direct_pending) { // 队列非空
   //   log_dump(NR_MAC, direct_preview, direct_payload_len, LOG_DUMP_CHAR, "direct queue\n");
     
-  //   // size_t preview_len = direct_payload_len < (uint32_t)sizeof(direct_preview)
-  //   //                        ? (size_t)direct_payload_len
-  //   //                        : sizeof(direct_preview);                 // 取预览字节数（不超过缓冲区）
-  //   // char preview_hex[3 * direct_payload_len + 1];            // 十六进制打印缓冲：每字节两位 + 空格
-  //   // preview_hex[0] = '\0';
-  //   // size_t offset = 0;
+  //   size_t preview_len = direct_payload_len < (uint32_t)sizeof(direct_preview)
+  //                          ? (size_t)direct_payload_len
+  //                          : sizeof(direct_preview);                 // 取预览字节数（不超过缓冲区）
+  //   char preview_hex[3 * direct_payload_len + 1];            // 十六进制打印缓冲：每字节两位 + 空格
+  //   preview_hex[0] = '\0';
+  //   size_t offset = 0;
 
-  //   // for (size_t i = 0; i < preview_len && offset + 1 < sizeof(preview_hex); ++i) {
-  //   //   int written = snprintf(preview_hex + offset,                 // 将预览字节格式化为十六进制字符串
-  //   //                          sizeof(preview_hex) - offset,
-  //   //                          "%02X%s",
-  //   //                          direct_preview[i],
-  //   //                          (i + 1 < preview_len) ? " " : "");
-  //   //   if (written <= 0)
-  //   //     break;                                                     // 写入失败则停止
-  //   //   offset += (size_t)written;
-  //   // }
+  //   for (size_t i = 0; i < preview_len && offset + 1 < sizeof(preview_hex); ++i) {
+  //     int written = snprintf(preview_hex + offset,                 // 将预览字节格式化为十六进制字符串
+  //                            sizeof(preview_hex) - offset,
+  //                            "%02X%s",
+  //                            direct_preview[i],
+  //                            (i + 1 < preview_len) ? " " : "");
+  //     if (written <= 0)
+  //       break;                                                     // 写入失败则停止
+  //     offset += (size_t)written;
+  //   }
 
-  //   // LOG_I(NR_MAC,
-  //   //       "[direct][gNB %d][%4d.%2d] direct queue pending %u bytes, preview(%zu)=%s\n",
-  //   //       module_id,
-  //   //       frame,
-  //   //       slot,
-  //   //       direct_payload_len,
-  //   //       preview_len,
-  //   //       preview_len > 0 ? preview_hex : "<empty>");              // 记录队列长度与预览内容
+  //   LOG_I(NR_MAC,
+  //         "[direct][gNB %d][%4d.%2d] direct queue pending %u bytes, preview(%zu)=%s\n",
+  //         module_id,
+  //         frame,
+  //         slot,
+  //         direct_payload_len,
+  //         preview_len,
+  //         preview_len > 0 ? preview_hex : "<empty>");              // 记录队列长度与预览内容
   // } else {
   //   LOG_D(NR_MAC,
   //         "[direct][gNB %d][%4d.%2d] direct queue empty\n",
@@ -1520,16 +1520,7 @@ void nr_schedule_ue_spec(module_id_t module_id,
 
         log_dump(NR_MAC, pdata, dlen, LOG_DUMP_CHAR, "direct queue data to send\n");
 
-        int dtch_lcid = -1;
-        for(int i = 0;i < seq_arr_size(&sched_ctrl->lc_config);i++) {
-          const nr_lc_config_t *c = seq_arr_at(&sched_ctrl->lc_config, i);
-          if(!c->suspended && c->lcid >= DL_SCH_LCID_DTCH){
-            dtch_lcid = c->lcid;
-            break;  
-          }
-        }
-
-        #define DIRECT_LCID_UE  5   // 示例：请改成你实际已配置成功的 DTCH LCID
+        #define DIRECT_LCID_UE  33   // 示例：请改成你实际已配置成功的 DTCH LCID
 
         NR_MAC_SUBHEADER_LONG *header = (NR_MAC_SUBHEADER_LONG *) buf;
         header->R = 0;
