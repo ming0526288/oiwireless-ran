@@ -436,7 +436,7 @@ int8_t nr_ue_process_dci_freq_dom_resource_assignment(nfapi_nr_ue_pusch_pdu_t *p
 
       // write all bits until last bit special case
       for (int i = 1; i < n_RBG - 1; i++) {
-        // The order of RBG bitmap is such that RBG 0 to RBG n_RBG âˆ’ 1 are mapped from MSB to LSB
+        // The order of RBG bitmap is such that RBG 0 to RBG n_RBG âˆ? 1 are mapped from MSB to LSB
         int bit_rbg = (frequency_domain_assignment.val >> (n_RBG - 1 - i)) & 0x01;
         currentBit += writeBit(rb_bitmap, currentBit, bit_rbg, P);
       }
@@ -1800,7 +1800,7 @@ static int find_pucch_resource_set(NR_PUCCH_Config_t *pucch_Config, int size)
   AssertFatal(pucch_Config && pucch_Config->resourceSetToAddModList, "pucch-Config NULL, this function shouldn't have been called\n");
   AssertFatal(size <= 1706, "O_UCI cannot be larger that 1706 bits\n");
 
-  // a first set of PUCCH resources with pucch-ResourceSetId = 0 if O UCI â‰¤ 2 including 1 or 2 HARQ-ACK information bits
+  // a first set of PUCCH resources with pucch-ResourceSetId = 0 if O UCI â‰? 2 including 1 or 2 HARQ-ACK information bits
   if (size <= 2)
     return 0;
 
@@ -1817,13 +1817,13 @@ static int find_pucch_resource_set(NR_PUCCH_Config_t *pucch_Config, int size)
       N3 = pucchresset->maxPayloadSize ? *pucchresset->maxPayloadSize : 1706;
   }
 
-  // a second set of PUCCH resources with pucch-ResourceSetId = 1, if provided by higher layers, if 2 < O UCI â‰¤ N 2
+  // a second set of PUCCH resources with pucch-ResourceSetId = 1, if provided by higher layers, if 2 < O UCI â‰? N 2
   if (size <= N2)
     return 1;
-  // a third set of PUCCH resources with pucch-ResourceSetId = 2, if provided by higher layers, if N 2 < O UCI â‰¤ N 3
+  // a third set of PUCCH resources with pucch-ResourceSetId = 2, if provided by higher layers, if N 2 < O UCI â‰? N 3
   if (size <= N3)
     return 2;
-  // a fourth set of PUCCH resources with pucch-ResourceSetId = 3, if provided by higher layers, if N 3 < O UCI â‰¤ 1706
+  // a fourth set of PUCCH resources with pucch-ResourceSetId = 3, if provided by higher layers, if N 3 < O UCI â‰? 1706
   return 3;
 }
 
@@ -3388,7 +3388,7 @@ static void extract_01_c_rnti(dci_pdu_rel15_t *dci_pdu_rel15, const uint8_t *dci
   // Time domain assignment
   EXTRACT_DCI_ITEM(dci_pdu_rel15->time_domain_assignment.val, dci_pdu_rel15->time_domain_assignment.nbits);
   // Not supported yet - skip for now
-  // Frequency hopping flag â€“ 1 bit
+  // Frequency hopping flag â€? 1 bit
   // EXTRACT_DCI_ITEM(dci_pdu_rel15->frequency_hopping_flag.val, 1);
   // MCS  5 bit
   EXTRACT_DCI_ITEM(dci_pdu_rel15->mcs, 5);
@@ -3402,7 +3402,7 @@ static void extract_01_c_rnti(dci_pdu_rel15_t *dci_pdu_rel15, const uint8_t *dci
   EXTRACT_DCI_ITEM(dci_pdu_rel15->dai[0].val, dci_pdu_rel15->dai[0].nbits);
   // 2nd Downlink assignment index
   EXTRACT_DCI_ITEM(dci_pdu_rel15->dai[1].val, dci_pdu_rel15->dai[1].nbits);
-  // TPC command for scheduled PUSCH â€“ 2 bits
+  // TPC command for scheduled PUSCH â€? 2 bits
   EXTRACT_DCI_ITEM(dci_pdu_rel15->tpc, 2);
   // SRS resource indicator
   EXTRACT_DCI_ITEM(dci_pdu_rel15->srs_resource_indicator.val, dci_pdu_rel15->srs_resource_indicator.nbits);
@@ -3424,7 +3424,7 @@ static void extract_01_c_rnti(dci_pdu_rel15_t *dci_pdu_rel15, const uint8_t *dci
   EXTRACT_DCI_ITEM(dci_pdu_rel15->dmrs_sequence_initialization.val, dci_pdu_rel15->dmrs_sequence_initialization.nbits);
   // UL-SCH indicator
   EXTRACT_DCI_ITEM(dci_pdu_rel15->ulsch_indicator, 1);
-  // UL/SUL indicator â€“ 1 bit
+  // UL/SUL indicator â€? 1 bit
   /* commented for now (RK): need to get this from BWP descriptor
      if (cfg->pucch_config.pucch_GroupHopping.value)
        dci_pdu->= ((uint64_t)*dci_pdu>>(dci_size-pos)ul_sul_indicator&1)<<(dci_size-pos++);
@@ -3904,6 +3904,15 @@ static void nr_ue_process_mac_pdu(NR_UE_MAC_INST_t *mac, nr_downlink_indication_
         // discard the received subPDU if RB is suspended
         if (is_lcid_suspended(mac, rx_lcid)) {
           LOG_W(NR_MAC, "Received PDU for a suspended RB, corresponding to LCID %d. Dropping it.\n", rx_lcid);
+          break;
+        }
+
+        #define DIRECT_LCID_UE  5
+
+        if (rx_lcid == DIRECT_LCID_UE) {
+          LOG_I(NR_MAC,"[UE %d][%d.%d] DIRECT-LCID %d: deliver %u bytes to TUN/queue (bypass RLC)\n",
+          mac->ue_id, frameP, slot, rx_lcid, mac_len);
+
           break;
         }
         LOG_D(NR_MAC, "%4d.%2d : DLSCH -> LCID %d %d bytes\n", frameP, slot, rx_lcid, mac_len);
