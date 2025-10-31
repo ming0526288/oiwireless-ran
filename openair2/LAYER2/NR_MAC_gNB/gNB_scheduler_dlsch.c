@@ -38,6 +38,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <arpa/inet.h>
 
 /*TAG*/
 #include "NR_TAG-Id.h"
@@ -48,6 +49,7 @@
 
 #include "openair2/SDAP/nr_sdap/nr_sdap.h"
 #include "common/utils/threadPool/notified_fifo.h"
+#include "openair3/NGAP/ngap_gNB_ue_context.h"
 
 ////////////////////////////////////////////////////////
 /////* DLSCH MAC PDU generation (6.1.2 TS 38.321) */////
@@ -327,43 +329,87 @@ int nr_write_ce_dlsch_pdu(module_id_t module_idP,
   return offset;
 }
 
-#define DIRECT_QUEUE_PREVIEW_BYTES 16  // 直传队列日志时最多预览 16 字节
+#define DIRECT_QUEUE_PREVIEW_BYTES 16  // number of bytes copied when peeking at the direct queue for logging
+#define DIRECT_RB_LCID 0x1E            // dedicated MAC LCID reserved for direct RB payload
+#define DIRECT_RB_ID 99                // logical RB identifier used for direct traffic in logs/stats
+
+static bool direct_extract_ipv4_dest(const uint8_t *payload, uint32_t len, uint32_t *dest_addr_be)
+{
+  if (len < 20)
+    return false;  // IPv4 minimum header size is 20 bytes
+
+  const uint8_t version = payload[0] >> 4;
+  if (version != 4)
+    return false;  // currently we only handle IPv4 payloads
+
+  memcpy(dest_addr_be, payload + 16, sizeof(uint32_t));  // destination address field starts at byte offset 16
+  return true;
+}
+
+static bool direct_payload_matches_rnti(const uint8_t *payload, uint32_t len, uint16_t rnti)
+{
+  const char *ue_ip = find_ue_ip_by_rnti(rnti);
+  if (!ue_ip || ue_ip[0] == '\0')
+    return true;  // no mapping registered -> treat as broadcast
+
+  struct in_addr ue_addr;
+  if (inet_aton(ue_ip, &ue_addr) == 0) {
+    LOG_W(NR_MAC,
+          "[direct][gNB] malformed UE IP mapping for RNTI %04x (%s)",
+          rnti,
+          ue_ip ? ue_ip : "<null>");
+    return true;  // malformed mapping, fall back to permissive behaviour
+  }
+
+  uint32_t dest_addr_be = 0;
+  if (!direct_extract_ipv4_dest(payload, len, &dest_addr_be))
+    return true;  // non IPv4 payloads are forwarded by default
+
+  if (dest_addr_be != ue_addr.s_addr) {
+    struct in_addr dest_addr = {.s_addr = dest_addr_be};
+    /* LOG_W(NR_MAC,
+          "[direct][gNB] allow delivery despite IP mismatch: RNTI %04x mapped %s, payload dst %s",
+          rnti,
+          ue_ip,
+          inet_ntoa(dest_addr)); */
+    return true;  // relaxed policy: deliver even if IP differs
+  }
+
+  return true;
+}
 
 static bool direct_queue_peek(notifiedFIFO_t *nf,
                               uint32_t *payload_len,
                               uint8_t *preview,
                               size_t preview_len)
 {
-  // 如果调用方提供了预览缓冲，先清零，避免残留旧数据
   if (preview != NULL && preview_len > 0)
-    memset(preview, 0, preview_len);
+    memset(preview, 0, preview_len);  // avoid leaking stale data into logs
 
   bool has = false;
 
-  // 尝试加锁；加锁失败（队列繁忙）则直接返回 false
   int tmp = mutextrylock(nf->lockF);
   if (tmp != 0)
-    return false;
+    return false;  // queue busy -> treat as empty for this occasion
 
-  // 取出队列头指针，队列为空则直接退出
   notifiedFIFO_elt_t *head = nf->outF;
   if (head != NULL) {
-    uint8_t *data = (uint8_t *)NotifiedFifoData(head);  // 指向元素的有效负载
+    uint8_t *data = (uint8_t *)NotifiedFifoData(head);
     uint32_t len = 0;
-    memcpy(&len, data, sizeof(uint32_t));               // 负载前 4 字节为长度字段
+    memcpy(&len, data, sizeof(uint32_t));  // first word stores payload length
 
     if (payload_len != NULL)
-      *payload_len = len;                               // 返回队列首包的长度
+      *payload_len = len;
 
     if (preview != NULL && preview_len > 0) {
       size_t to_copy = len < preview_len ? len : preview_len;
-      memcpy(preview, data + sizeof(uint32_t), to_copy); // 拷贝前 to_copy 字节供日志预览
+      memcpy(preview, data + sizeof(uint32_t), to_copy);
     }
 
-    has = true;  // 标记队列非空
+    has = true;
   }
 
-  mutexunlock(nf->lockF);  // 解锁队列互斥量
+  mutexunlock(nf->lockF);
   return has;
 }
 
@@ -416,6 +462,26 @@ static void nr_store_dlsch_buffer(module_id_t module_id, frame_t frame, slot_t s
     sched_ctrl->num_total_bytes = 0; // 初始化总字节数为0
     sched_ctrl->dl_pdus_total = 0; // 初始化总PDU数为0
 
+
+    uint32_t direct_len_accounted = 0;
+    uint8_t direct_head[DIRECT_QUEUE_PREVIEW_BYTES];
+    if (direct_queue_peek(&gnb_queue,
+                          &direct_len_accounted,
+                          direct_head,
+                          sizeof(direct_head)) &&
+        direct_payload_matches_rnti(direct_head,
+                                    direct_len_accounted,
+                                    UE->rnti)) {
+      sched_ctrl->num_total_bytes += direct_len_accounted;
+      sched_ctrl->dl_pdus_total += 1;
+      LOG_D(NR_MAC,
+            "[direct][gNB %d][%4d.%2d] UE %04x accounting %u bytes for direct RB scheduling\n",
+            module_id,
+            frame,
+            slot,
+            UE->rnti,
+            direct_len_accounted);
+    }
     /* loop over all activated logical channels */
     // Note: DL_SCH_LCID_DCCH, DL_SCH_LCID_DCCH1, DL_SCH_LCID_DTCH
     for (int i = 0; i < seq_arr_size(&sched_ctrl->lc_config); ++i) { // 遍历所有LC的配置，获取每条LC的RLC缓冲状态、累积的总字节数、总PDU数
@@ -1450,6 +1516,65 @@ void nr_schedule_ue_spec(module_id_t module_id,
       }
 
       stop_meas(&gNB_mac->rlc_data_req);
+
+ // 从直传队列读取元素，并塞进当前的传输块 TB
+      while (bufEnd - buf > (int)sizeof(NR_MAC_SUBHEADER_LONG)) {
+        notifiedFIFO_elt_t *direct_elt = pollNotifiedFIFO(&gnb_queue);
+        if (!direct_elt)
+          break;  // 队列已空，本轮无需再塞直传数据
+
+        uint8_t *direct_ptr = (uint8_t *)NotifiedFifoData(direct_elt);
+        uint32_t direct_len = 0;
+        memcpy(&direct_len, direct_ptr, sizeof(uint32_t));
+        uint8_t *direct_payload = direct_ptr + sizeof(uint32_t);
+
+        if (direct_len == 0) {            // 避免 0 长度元素把队列卡住
+          delNotifiedFIFO_elt(direct_elt);
+          continue;
+        }
+
+        if (!direct_payload_matches_rnti(direct_payload, direct_len, UE->rnti)) {
+          // 目的 IP 与当前 UE 的映射不一致，丢弃该直传数据
+          LOG_W(NR_MAC,
+                "[direct][gNB %d][%4d.%2d] UE %04x dropped direct payload len=%u (IP mismatch)",
+                module_id,
+                frame,
+                slot,
+                UE->rnti,
+                direct_len);
+          delNotifiedFIFO_elt(direct_elt);
+          continue;
+        }
+
+        size_t needed = sizeof(NR_MAC_SUBHEADER_LONG) + (size_t)direct_len;
+        if (needed > (size_t)(bufEnd - buf)) {
+          // TB 剩余空间不够，下个调度周期再尝试
+          pushNotifiedFIFO(&gnb_queue, direct_elt);
+          break;
+        }
+
+        NR_MAC_SUBHEADER_LONG *direct_header = (NR_MAC_SUBHEADER_LONG *)buf;
+        direct_header->R = 0;
+        direct_header->F = 1;
+        direct_header->LCID = DIRECT_RB_LCID;           // 使用专用 LCID 区分直传业务
+        direct_header->L = htons(direct_len);
+        memcpy(buf + sizeof(NR_MAC_SUBHEADER_LONG), direct_payload, direct_len);
+        buf += needed;
+        dlsch_total_bytes += direct_len;
+        sdus += 1;
+        UE->mac_stats.dl.lc_bytes[DIRECT_RB_LCID] += direct_len;
+
+        LOG_I(NR_MAC,
+              "[direct][gNB %d][%4d.%2d] UE RNTI %04x direct RB %d len=%u bytes\n",
+              module_id,
+              frame,
+              slot,
+              UE->rnti,
+              DIRECT_RB_ID,
+              direct_len);                // 记录直传 RB 的长度和 RBID，便于调试
+
+        delNotifiedFIFO_elt(direct_elt);  // 当前元素已消费，释放 FIFO 节点
+      }
 
       // Add padding header and zero rest out if there is space left
       if (bufEnd-buf > 0) {

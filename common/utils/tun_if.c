@@ -29,6 +29,7 @@
 #include <linux/ipv6.h>
 #include <linux/if_tun.h>
 #include <linux/netlink.h>
+#include <unistd.h>
 
 #include "tun_if.h"
 #include "common/platform_constants.h"
@@ -269,9 +270,32 @@ int tun_generate_ifname(char *ifname, const char *ifprefix, int instance_id)
 
 int tun_generate_ue_ifname(char *ifname, int instance_id, int pdu_session_id)
 {
-  char pdu_session_string[10];
-  snprintf(pdu_session_string, sizeof(pdu_session_string), "p%d", pdu_session_id);
-  return snprintf(ifname, IFNAMSIZ, "%s%d%s", "oaitun_ue", instance_id + 1, pdu_session_id == -1 ? "" : pdu_session_string);//pdu_session_id = -1ʱoaitun_ue1
+  char candidate[IFNAMSIZ];                      // 用于暂存待检测的接口名
+  const int max_attempts = MAX_MOBILES_PER_ENB > 0 ? MAX_MOBILES_PER_ENB : 64;
+
+  // 依次尝试不同编号的接口名，直到找到未被占用的名字
+  for (int offset = 0; offset < max_attempts; ++offset) {
+    const int idx = instance_id + offset;        // 从当前实例号开始递增
+
+    if (pdu_session_id == -1)
+      snprintf(candidate, sizeof(candidate), "%s%d", "oaitun_ue", idx + 1);
+    else
+      snprintf(candidate, sizeof(candidate), "%s%dp%d", "oaitun_ue", idx + 1, pdu_session_id);
+
+    if (if_nametoindex(candidate) == 0) {        // 该名称尚未被使用
+      strncpy(ifname, candidate, IFNAMSIZ);
+      ifname[IFNAMSIZ - 1] = '\0';               // 确保字符串以 '\0' 结尾
+      return strlen(ifname);
+    }
+  }
+
+  // 如果遍历完仍未找到空闲名称，打印警告并退回使用默认命名方式
+  LOG_W(UTIL, "No free UE TUN interface name available, falling back to default pattern\n");
+  if (pdu_session_id == -1)
+    snprintf(ifname, IFNAMSIZ, "%s%d", "oaitun_ue", instance_id + 1);
+  else
+    snprintf(ifname, IFNAMSIZ, "%s%dp%d", "oaitun_ue", instance_id + 1, pdu_session_id);
+  return strlen(ifname);
 }
 
 void tun_destroy(const char *dev)

@@ -41,13 +41,41 @@
 ue_ip_map_t ue_ip_map_table[MAX_UE_NUM] = {0};
 
 void store_ue_ip_rnti_mapping(uint16_t rnti, const char *ue_ip) {
+    int first_free_idx = -1;  // 记录第一个空槽位的下标
+
     for (int i = 0; i < MAX_UE_NUM; i++) {
-        if (ue_ip_map_table[i].rnti == 0 || ue_ip_map_table[i].rnti == rnti) {
-            ue_ip_map_table[i].rnti = rnti;
+        if (ue_ip_map_table[i].rnti == rnti) {  // 已经有该 RNTI 的条目
             strncpy(ue_ip_map_table[i].ue_ip, ue_ip, sizeof(ue_ip_map_table[i].ue_ip));
+            ue_ip_map_table[i].ue_ip[sizeof(ue_ip_map_table[i].ue_ip) - 1] = '\0';
             return;
         }
+
+        if (ue_ip_map_table[i].rnti != 0 &&
+            strncmp(ue_ip_map_table[i].ue_ip, ue_ip, sizeof(ue_ip_map_table[i].ue_ip)) == 0) {
+            // IP 已经映射给其他 RNTI，拒绝新的映射，避免冲突
+            if (ue_ip_map_table[i].rnti != rnti) {
+                LOG_W(NGAP,
+                      "Conflict: IP %s already mapped to RNTI 0x%04x, rejecting new mapping for RNTI 0x%04x",
+                      ue_ip,
+                      ue_ip_map_table[i].rnti,
+                      rnti);
+                return;
+            }
+        }
+
+        if (first_free_idx == -1 && ue_ip_map_table[i].rnti == 0)  // 记录第一个空槽
+            first_free_idx = i;
     }
+
+    if (first_free_idx != -1) {  // 找到空槽，把新映射写入
+        ue_ip_map_table[first_free_idx].rnti = rnti;
+        strncpy(ue_ip_map_table[first_free_idx].ue_ip, ue_ip,
+                sizeof(ue_ip_map_table[first_free_idx].ue_ip));
+        ue_ip_map_table[first_free_idx].ue_ip[sizeof(ue_ip_map_table[first_free_idx].ue_ip) - 1] = '\0';
+        return;
+    }
+
+    // 表已满，无法再存映射
     LOG_W(NGAP, "UE IP mapping table full, cannot store mapping for RNTI 0x%04x", rnti);
 }
 

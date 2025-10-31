@@ -764,8 +764,8 @@ static void send_ngap_pdu_session_setup_resp_fail(instance_t instance, ngap_pdus
   itti_send_msg_to_task(TASK_NGAP, instance, msg_resp);
 }
 
-// ±£»¤Í·³¤¶È£º°´Äã¹¤³ÌµÄºêÀ´¡£Èç¹ûÈ±Ê¡Ã»¶¨Òå£¬¿ÉÒÔÓÃ³£¼ûÖµ£º
-// 5GS NAS °²È«±£»¤Í·³£¼û 7 ×Ö½Ú£»Plain header ³£¼û 3 ×Ö½Ú¡£
+// ï¿½ï¿½ï¿½ï¿½Í·ï¿½ï¿½ï¿½È£ï¿½ï¿½ï¿½ï¿½ã¹¤ï¿½ÌµÄºï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È±Ê¡Ã»ï¿½ï¿½ï¿½å£¬ï¿½ï¿½ï¿½ï¿½ï¿½Ã³ï¿½ï¿½ï¿½Öµï¿½ï¿½
+// 5GS NAS ï¿½ï¿½È«ï¿½ï¿½ï¿½ï¿½Í·ï¿½ï¿½ï¿½ï¿½ 7 ï¿½Ö½Ú£ï¿½Plain header ï¿½ï¿½ï¿½ï¿½ 3 ï¿½Ö½Ú¡ï¿½
 #ifndef SECURITY_PROTECTED_5GS_NAS_MESSAGE_HEADER_LENGTH
 #define SECURITY_PROTECTED_5GS_NAS_MESSAGE_HEADER_LENGTH 7
 #endif
