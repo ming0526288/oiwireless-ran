@@ -1544,6 +1544,13 @@ void nr_schedule_ue_spec(module_id_t module_id,
               rnti,
               dlen,
               bufEnd-buf);
+
+        LOG_I(NR_MAC, "========== Printing all RNTI and IP mappings ==========\n");
+        for (int i = 0; i < MAX_UE_NUM; i++) {
+          if (ue_ip_map_table[i].rnti != 0) {
+            LOG_I(NR_MAC, "RNTI: 0x%04x <--> IP: %s\n", ue_ip_map_table[i].rnti, ue_ip_map_table[i].ue_ip);
+          }
+        }
         delNotifiedFIFO_elt(elt);
       }
 
