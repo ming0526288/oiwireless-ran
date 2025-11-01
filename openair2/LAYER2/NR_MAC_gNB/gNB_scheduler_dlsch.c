@@ -492,7 +492,7 @@ static void nr_store_dlsch_buffer(module_id_t module_id, frame_t frame, slot_t s
     if (direct_pending) {
           sched_ctrl->dl_pdus_total += 1;
           sched_ctrl->num_total_bytes += direct_payload_len;
-          LOG_I(NR_MAC, "[direct] UE %04x: gnb_queue non-empty -> trigger DL scheduling\n", UE->rnti);
+          // LOG_I(NR_MAC, "[direct] UE %04x: gnb_queue non-empty -> trigger DL scheduling\n", UE->rnti);
     } 
   }
     

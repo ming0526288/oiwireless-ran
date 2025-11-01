@@ -3916,24 +3916,24 @@ static void nr_ue_process_mac_pdu(NR_UE_MAC_INST_t *mac, nr_downlink_indication_
       case 33:
         if (!get_mac_len(pduP, pdu_len, &mac_len, &mac_subheader_len))
           return;
-        // discard the received subPDU if RB is suspended
-        if (is_lcid_suspended(mac, rx_lcid)) {
-          LOG_W(NR_MAC, "Received PDU for a suspended RB, corresponding to LCID %d. Dropping it.\n", rx_lcid);
-          break;
-        }
+        // // discard the received subPDU if RB is suspended
+        // if (is_lcid_suspended(mac, rx_lcid)) {
+        //   LOG_W(NR_MAC, "Received PDU for a suspended RB, corresponding to LCID %d. Dropping it.\n", rx_lcid);
+        //   break;
+        // }
         
         char *payload = (char *)(pduP + mac_subheader_len);
         int plen = (int)mac_len;
 
         int pdusession_id = get_softmodem_params()->default_pdu_session_id;
-        nr_sdap_entity_t *ent = nr_sdap_get_entity(mac->ue_id, pdusession_id);
-        if(!ent){
+        nr_sdap_entity_t *entity = nr_sdap_get_entity(mac->ue_id, pdusession_id);
+        if(!entity){
           LOG_I(NR_MAC, "SDAP entity for PDU session %d\n", pdusession_id);
           break;
         }
         
         rb_id_t fake_drb = 1; // ռλ
-        ent->rx_entity(ent, 
+        entity->rx_entity(entity, 
                           fake_drb, 
                           0,
                           false,
