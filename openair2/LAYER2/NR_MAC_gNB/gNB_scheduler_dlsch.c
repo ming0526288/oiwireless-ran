@@ -1534,8 +1534,8 @@ void nr_schedule_ue_spec(module_id_t module_id,
 
         dlsch_total_bytes += dlen;
         sdus +=1;
-        if(DL_SCH_LCID_DTCH < (int)(sizeof(UE->mac_stats.dl.lc_bytes)/sizeof(UE->mac_stats.dl.lc_bytes[0])))
-          UE->mac_stats.dl.lc_bytes[DL_SCH_LCID_DTCH] += dlen;
+        if(DIRECT_LCID_UE < (int)(sizeof(UE->mac_stats.dl.lc_bytes)/sizeof(UE->mac_stats.dl.lc_bytes[0])))
+          UE->mac_stats.dl.lc_bytes[DIRECT_LCID_UE] += dlen;
 
         LOG_I(NR_MAC,
               "%4d.%2d RNTI %04x: %d bytes from external source (DTCH) (remaining size %ld)\n",

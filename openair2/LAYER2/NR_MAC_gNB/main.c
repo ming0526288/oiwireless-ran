@@ -215,6 +215,19 @@ size_t dump_mac_stats(gNB_MAC_INST *gNB, char *output, size_t strlen, bool reset
                          stats->dl.lc_bytes[c->lcid],
                          stats->ul.lc_bytes[c->lcid]);
     }
+    #define DIRECT_LCID_UE 33
+    const int lcid_direct = DIRECT_LCID_UE; // 33
+    if (lcid_direct < (int)(sizeof(stats->dl.lc_bytes)/sizeof(stats->dl.lc_bytes[0]))) {
+      if (stats->dl.lc_bytes[lcid_direct] > 0) {
+        output += snprintf(output, 
+                          end - output,
+                          "UE %04x: LCID %d: TX %14"PRIu64" RX %14"PRIu64" bytes  [DIRECT]\n",
+                          UE->rnti,
+                          lcid_direct,
+                          stats->dl.lc_bytes[lcid_direct],
+                          stats->ul.lc_bytes[lcid_direct]);
+  }
+}
   }
   NR_SCHED_UNLOCK(&gNB->UE_info.mutex);
   return output - begin;
