@@ -49,6 +49,7 @@
 #include <executables/softmodem-common.h>
 #include "openair2/LAYER2/nr_rlc/nr_rlc_oai_api.h"
 #include "RRC/NR_UE/L2_interface_ue.h"
+#include "openair2/SDAP/nr_sdap/nr_sdap.h"
 
 //#define SRS_DEBUG
 #define verifyMutex(a)                                                \
@@ -60,6 +61,44 @@
 static void nr_ue_prach_scheduler(NR_UE_MAC_INST_t *mac, frame_t frameP, slot_t slotP);
 static void schedule_ta_command(fapi_nr_dl_config_request_t *dl_config, NR_UE_MAC_INST_t *mac);
 static void schedule_ntn_config_command(fapi_nr_dl_config_request_t *dl_config, NR_UE_MAC_INST_t *mac);
+
+static bool ul_direct_queue_peek(notifiedFIFO_t *nf,
+                              uint32_t *payload_len,
+                              uint8_t *preview,
+                              size_t preview_len)
+{
+  // 如果调用方提供了预览缓冲，先清零，避免残留旧数据
+  if (preview != NULL && preview_len > 0)
+    memset(preview, 0, preview_len);
+
+  bool has = false;
+
+  // 尝试加锁；加锁失败（队列繁忙）则直接返回 false
+  int tmp = mutextrylock(nf->lockF);
+  if (tmp != 0)
+    return false;
+
+  // 取出队列头指针，队列为空则直接退出
+  notifiedFIFO_elt_t *head = nf->outF;
+  if (head != NULL) {
+    uint8_t *data = (uint8_t *)NotifiedFifoData(head);  // 指向元素的有效负载
+    uint32_t len = 0;
+    memcpy(&len, data, sizeof(uint32_t));               // 负载前 4 字节为长度字段
+
+    if (payload_len != NULL)
+      *payload_len = len;                               // 返回队列首包的长度
+
+    if (preview != NULL && preview_len > 0) {
+      size_t to_copy = len < preview_len ? len : preview_len;
+      memcpy(preview, data + sizeof(uint32_t), to_copy); // 拷贝前 to_copy 字节供日志预览
+    }
+
+    has = true;  // 标记队列非空
+  }
+
+  mutexunlock(nf->lockF);  // 解锁队列互斥量
+  return has;
+}
 
 static void nr_ue_fill_phr(NR_UE_MAC_INST_t *mac,
                            NR_SINGLE_ENTRY_PHR_MAC_CE *phr,
@@ -2556,6 +2595,94 @@ static uint select_logical_channels(NR_UE_MAC_INST_t *mac, nr_lcordered_info_t *
   return nb;
 }
 
+static bool fill_mac_sdu_direct(NR_UE_MAC_INST_t *mac,
+                         frame_t frame,
+                         slot_t slot,
+                         uint8_t gNB_index,
+                         NR_UE_MAC_CE_INFO *mac_ce_p
+)
+{
+    uint usable;
+    uint32_t bytes_requested = 0;
+    int lcid = 33;
+    while(1)
+    {
+        usable = mac_ce_p->end_for_tailer - mac_ce_p->cur_ptr;
+        if (usable < sizeof(NR_MAC_SUBHEADER_LONG))
+        {
+          // We can't add one byte after the header
+          LOG_D(PHY, "frame %d %d, usable: %d <  LONG: %d\n", frame, slot, usable, sizeof(NR_MAC_SUBHEADER_LONG) );
+          return false;
+        }
+        // Pointer used to build the MAC sub-PDU headers in the ULSCH buffer for each SDU
+        NR_MAC_SUBHEADER_LONG *header = (NR_MAC_SUBHEADER_LONG *)mac_ce_p->cur_ptr;
+
+        int header_sz = usable < 256 ? sizeof(NR_MAC_SUBHEADER_SHORT) : sizeof(NR_MAC_SUBHEADER_LONG);
+
+        uint32_t qlen = 0;
+        if(!ul_direct_queue_peek(&ue_queue, &bytes_requested, NULL, 0))
+        {
+          LOG_D(PHY, "frame %d %d, ueque empty, usable %d\n", frame, slot, usable);
+          return false;
+        }
+        if(bytes_requested == 0)
+        {
+          LOG_I(PHY, "frame %d %d, ueque empty bytes_requested == 0\n", frame, slot);
+          return false;
+        }
+        header_sz = bytes_requested < 256 ? sizeof(NR_MAC_SUBHEADER_SHORT) : sizeof(NR_MAC_SUBHEADER_LONG);
+
+        tbs_size_t room = (tbs_size_t)(usable - header_sz);
+        if(room < (tbs_size_t)bytes_requested)
+        {
+          LOG_I(PHY, "frame %d %d, room %d < bytes_requested %d\n", frame, slot, room, bytes_requested);
+          return false;
+        }
+        notifiedFIFO_elt_t *elt = pullNotifiedFIFO(&ue_queue);
+        if(!elt) {
+          LOG_I(PHY, "frame %d %d,  ueque elt NULL\n", frame, slot);
+          return false;
+        }
+
+        uint8_t *p = (uint8_t *)NotifiedFifoData(elt);
+        uint32_t sdu_length = 0;
+        memcpy(&sdu_length, p, sizeof(uint32_t));
+        uint8_t *pdata = p + sizeof(uint32_t);
+        
+        if(sdu_length == 0 || (tbs_size_t)sdu_length > room) {
+          LOG_I(PHY, "frame %d %d,  ueque sdu_length %d error, room %d \n",frame, slot,  sdu_length, room);
+          delNotifiedFIFO_elt(elt);
+          return false;
+        }
+        memcpy((char *)mac_ce_p->cur_ptr + header_sz, pdata, sdu_length);
+        log_dump(NR_MAC, pdata, sdu_length, LOG_DUMP_CHAR, "ul direct queue data to send\n");
+        delNotifiedFIFO_elt(elt);
+
+        mac_ce_p->num_sdus++;
+    LOG_I(NR_MAC,
+          "[UE %d] [%d.%d] UL-DXCH -> ULSCH, Generating UL MAC sub-PDU for SDU %d, length %d bytes, RB with LCID "
+          "0x%02x (buflen (TBS) %ld bytes)\n",
+          mac->ue_id,
+          frame,
+          slot,
+          mac_ce_p->num_sdus,
+          sdu_length,
+          lcid,
+          mac_ce_p->end_for_tailer - mac_ce_p->cur_ptr);
+    if (header_sz == sizeof(NR_MAC_SUBHEADER_SHORT)) {
+      *(NR_MAC_SUBHEADER_SHORT *)header = (NR_MAC_SUBHEADER_SHORT){.R = 0, .F = 0, .LCID = lcid, .L = sdu_length};
+    } else {
+      *header = (NR_MAC_SUBHEADER_LONG){.R = 0, .F = 1, .LCID = lcid, .L = htons(sdu_length)};
+#ifdef ENABLE_MAC_PAYLOAD_DEBUG
+      LOG_I(NR_MAC, "dumping MAC SDU with length %d: \n", sdu_length);
+      log_dump(NR_MAC, header, sdu_length, LOG_DUMP_CHAR, "\n");
+#endif
+    }
+    mac_ce_p->cur_ptr += header_sz + sdu_length;
+  } 
+  return true;
+}
+
 static bool fill_mac_sdu(NR_UE_MAC_INST_t *mac,
                          frame_t frame,
                          slot_t slot,
@@ -2740,6 +2867,12 @@ static uint8_t nr_ue_get_sdu(NR_UE_MAC_INST_t *mac,
   }
   nr_lcordered_info_t *lcids_bj_pos[mac->lc_ordered_list.count];
   int avail_lcids_count = select_logical_channels(mac, lcids_bj_pos);
+
+  fill_mac_sdu_direct(mac,
+                         frame,
+                         slot,
+                         gNB_index,
+                         &mac_ce_info);
 
   // multiplex in the order of highest priority
   do {

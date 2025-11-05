@@ -402,7 +402,7 @@ void start_direct_sdap_tun_gnb_first_ue_default_pdu_session(ue_id_t ue_id)
 void start_sdap_tun_ue(ue_id_t ue_id, int pdu_session_id, int sock)
 {
   ipq_ue_init_once();  //队列初始化（仅执行一次）
-  maybe_start_ue_ipq_consumer();//启动消费者线程（只启动一次），进行测试打印队列内容
+  //maybe_start_ue_ipq_consumer();//启动消费者线程（只启动一次），进行测试打印队列内容
   nr_sdap_entity_t *entity = nr_sdap_get_entity(ue_id, pdu_session_id);
   DevAssert(entity != NULL);
   DevAssert(!entity->is_gnb);//UE侧的

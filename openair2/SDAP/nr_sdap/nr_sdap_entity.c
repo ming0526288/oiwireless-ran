@@ -464,6 +464,7 @@ static void nr_sdap_ue_qfi2drb_config(nr_sdap_entity_t *existing_sdap_entity,
  * @param   mapped_qfi_2_add, list of QoS flows to add/update
  * @param   mappedQFIs2AddCount, number of QoS flows to add/update
  */
+ue_id_t g_ueid_for_direct  = 0; 
 nr_sdap_entity_t *new_nr_sdap_entity(int is_gnb,
                                      bool has_sdap_rx,
                                      bool has_sdap_tx,
@@ -537,6 +538,8 @@ nr_sdap_entity_t *new_nr_sdap_entity(int is_gnb,
     // In NOS1 mode, terminate SDAP for the first UE on the gNB. This allows injecting/receiving
     // PDCP SDUs to/from the TUN interface.
     start_direct_sdap_tun_gnb_first_ue_default_pdu_session(ue_id);
+    g_ueid_for_direct = ue_id;
+    LOG_I(SDAP, "g_ueid_for_direct %lu\n", g_ueid_for_direct);
   }
   return sdap_entity;
 }

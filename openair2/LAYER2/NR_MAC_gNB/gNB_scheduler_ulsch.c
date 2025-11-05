@@ -38,6 +38,9 @@
 
 #include "openair2/SDAP/nr_sdap/nr_sdap.h"
 #include "common/utils/threadPool/notified_fifo.h"
+/* SDAP TUN*/
+#include "openair2/SDAP/nr_sdap/nr_sdap_entity.h"
+
 
 //#define SRS_IND_DEBUG
 
@@ -298,6 +301,7 @@ uint8_t decode_ul_mac_sub_pdu_header(uint8_t *pduP, uint8_t *lcid, uint16_t *len
     case UL_SCH_LCID_SRB1:
     case UL_SCH_LCID_SRB2:
     case UL_SCH_LCID_DTCH ...(UL_SCH_LCID_DTCH + 28):
+    case UL_SCH_LCID_DIRECT:
     case UL_SCH_LCID_L_TRUNCATED_BSR:
     case UL_SCH_LCID_L_BSR:
       if (pduP[0] & 0x40) { // F = 1
@@ -370,7 +374,7 @@ static rnti_t lcid_crnti_lookahead(uint8_t *pdu, uint32_t pdu_len)
   }
   return 0;
 }
-
+extern ue_id_t g_ueid_for_direct;
 static int nr_process_mac_pdu(instance_t module_idP,
                               NR_UE_info_t *UE,
                               uint8_t CC_id,
@@ -517,7 +521,46 @@ static int nr_process_mac_pdu(instance_t module_idP,
         }
         break;
 
-      // #define DIRECT_LCID  33   // ×¨ÓÃLCID£¬ÓÃÓÚ±êÊ¶Ö±´«Êý¾Ý
+      case 33:
+        // // discard the received subPDU if RB is suspended
+        // if (is_lcid_suspended(mac, rx_lcid)) {
+        //   LOG_W(NR_MAC, "Received PDU for a suspended RB, corresponding to LCID %d. Dropping it.\n", rx_lcid);
+        //   break;
+        // }
+        
+        char *payload = (char *)(pduP + mac_subheader_len);
+        int plen = (int)mac_len;
+        LOG_I(NR_MAC,"[%d.%d] DIRECT-LCID %d: deliver %u bytes to TUN/queue (bypass RLC), pdu len %d, mac subheader len %d\n",
+        frameP, slot, lcid, mac_len, pdu_len, mac_subheader_len);
+
+        log_dump(NR_MAC, payload, plen, LOG_DUMP_CHAR, "DIRECT-LCID payload: \n");
+        UE->mac_stats.ul.lc_bytes[lcid] += mac_len;
+        sdus += 1;
+        /* Updated estimated buffer when receiving data */
+         if (sched_ctrl->estimated_ul_buffer >= mac_len)
+           sched_ctrl->estimated_ul_buffer -= mac_len;
+         else
+           sched_ctrl->estimated_ul_buffer = 0;
+        break;
+        int pdusession_id = get_softmodem_params()->default_pdu_session_id;
+        nr_sdap_entity_t *entity = nr_sdap_get_entity(g_ueid_for_direct, pdusession_id);
+        if(!entity){
+          LOG_I(NR_MAC, "SDAP entity for PDU session %d\n", pdusession_id);
+          break;
+        }
+                int written = 0;
+        int offset = 0;
+        while (offset < plen) {
+          int len = write(entity->pdusession_sock, payload + offset, plen - offset);
+          if (len < 0) {
+            LOG_E(NR_MAC, "Write to TUN/socket failed: %s\n", strerror(errno));
+            break;
+          }
+        offset += len;
+        written += len;
+        }
+
+      // #define DIRECT_LCID  33   // ×¨ï¿½ï¿½LCIDï¿½ï¿½ï¿½ï¿½ï¿½Ú±ï¿½Ê¶Ö±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
       // case DIRECT_LCID:
       //   LOG_D(NR_MAC,
       //         "[UE %04x] %d.%d : ULSCH -> Direct Data %d (gNB %ld, %d bytes)\n",
@@ -527,7 +570,7 @@ static int nr_process_mac_pdu(instance_t module_idP,
       //         lcid,
       //         module_idP,
       //         mac_len);
-      //   // Ö±½Ó½«Êý¾Ý´«µÝ¸øSDAP²ã½øÐÐ´¦Àí
+      //   // Ö±ï¿½Ó½ï¿½ï¿½ï¿½ï¿½Ý´ï¿½ï¿½Ý¸ï¿½SDAPï¿½ï¿½ï¿½ï¿½Ð´ï¿½ï¿½ï¿½
       //   nr_sdap_handle_direct_data(UE, (char *)(pduP + mac_subheader_len), mac_len);
 
       //   sdus += 1;
