@@ -541,7 +541,7 @@ static int nr_process_mac_pdu(instance_t module_idP,
            sched_ctrl->estimated_ul_buffer -= mac_len;
          else
            sched_ctrl->estimated_ul_buffer = 0;
-        break;
+        
         int pdusession_id = get_softmodem_params()->default_pdu_session_id;
         nr_sdap_entity_t *entity = nr_sdap_get_entity(g_ueid_for_direct, pdusession_id);
         if(!entity){
@@ -579,8 +579,8 @@ static int nr_process_mac_pdu(instance_t module_idP,
       //     sched_ctrl->estimated_ul_buffer -= mac_len;
       //   else
       //     sched_ctrl->estimated_ul_buffer = 0;
-      //   break;
-
+         break;
+      
 
       case UL_SCH_LCID_RECOMMENDED_BITRATE_QUERY:
         // 38.321 Ch6.1.3.20
@@ -2107,12 +2107,12 @@ static int  pf_ul(gNB_MAC_INST *nrmac,
 
     const int B = max(0, sched_ctrl->estimated_ul_buffer - sched_ctrl->sched_ul_bytes);
     /* preprocessor computed sched_frame/sched_slot */
-    const bool do_sched = nr_UE_is_to_be_scheduled(&nrmac->frame_structure,
-                                                   UE,
-                                                   sched_frame,
-                                                   sched_slot,
-                                                   nrmac->ulsch_max_frame_inactivity);
-
+    //const bool do_sched = nr_UE_is_to_be_scheduled(&nrmac->frame_structure,
+     //                                              UE,
+     //                                              sched_frame,
+     //                                              sched_slot,
+     //                                              nrmac->ulsch_max_frame_inactivity);
+    const bool do_sched = true;
     LOG_D(NR_MAC,"pf_ul: do_sched UE %04x => %s\n", UE->rnti, do_sched ? "yes" : "no");
     if ((B == 0 && !do_sched) || nr_timer_is_active(&sched_ctrl->transm_interrupt)) {
       reset_beam_status(&nrmac->beam_info, sched_frame, sched_slot, UE->UE_beam_index, slots_per_frame, beam.new_beam);

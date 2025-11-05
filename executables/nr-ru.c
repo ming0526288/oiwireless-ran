@@ -1803,6 +1803,13 @@ static void NRRCconfig_RU(configmodule_interface_t *cfg)
     ru->att_rx = *param[RU_ATT_RX_IDX].uptr;
     ru->if_frequency = *param[RU_IF_FREQUENCY].u64ptr;
     ru->if_freq_offset = *param[RU_IF_FREQ_OFFSET].iptr;
+    
+    if (ru->if_frequency < 4000000)
+        ru->if_frequency = ru->if_frequency * 1000;
+      else 
+        ru->if_frequency = 0;
+      LOG_I(PHY, "@@@@@@@@if_frequency %lu, if_freq_offset %d\n", ru->if_frequency, RC.ru[j]->if_freq_offset);
+
     ru->sl_ahead = *param[RU_SL_AHEAD].iptr;
     ru->num_bands = param[RU_BAND_LIST_IDX].numelt;
     for (int i = 0; i < ru->num_bands; i++)
