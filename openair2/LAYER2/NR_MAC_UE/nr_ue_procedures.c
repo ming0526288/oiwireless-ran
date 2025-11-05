@@ -3932,15 +3932,28 @@ static void nr_ue_process_mac_pdu(NR_UE_MAC_INST_t *mac, nr_downlink_indication_
           break;
         }
         
-        rb_id_t fake_drb = 1; // 占位
-        entity->rx_entity(entity, 
-                          fake_drb, 
-                          0,
-                          false,
-                          pdusession_id,
-                          mac->ue_id,
-                          payload, 
-                          plen);
+        // rb_id_t fake_drb = 1; // 占位
+        // entity->rx_entity(entity, 
+        //                   fake_drb, 
+        //                   0,
+        //                   false,
+        //                   pdusession_id,
+        //                   mac->ue_id,
+        //                   payload, 
+        //                   plen);
+        // 使用 write() 直接写入 TUN 设备
+        int written = 0;
+        int offset = 0;
+        while (offset < plen) {
+          int len = write(entity->pdusession_sock, payload + offset, plen - offset);
+          if (len < 0) {
+            LOG_E(NR_MAC, "Write to TUN/socket failed: %s\n", strerror(errno));
+            break;
+          }
+        offset += len;
+        written += len;
+        }
+
         LOG_I(NR_MAC,"[UE %d][%d.%d] DIRECT-LCID %d: deliver %u bytes to TUN/queue (bypass RLC)\n",
         mac->ue_id, frameP, slot, rx_lcid, mac_len);
         log_dump(NR_MAC, payload, plen, LOG_DUMP_CHAR, "DIRECT-LCID payload: \n");

@@ -215,8 +215,8 @@ size_t dump_mac_stats(gNB_MAC_INST *gNB, char *output, size_t strlen, bool reset
                          stats->dl.lc_bytes[c->lcid],
                          stats->ul.lc_bytes[c->lcid]);
     }
-    #define DIRECT_LCID_UE 33
-    const int lcid_direct = DIRECT_LCID_UE; // 33
+    #define DIRECT_LCID 33
+    const int lcid_direct = DIRECT_LCID; // 33
     if (lcid_direct < (int)(sizeof(stats->dl.lc_bytes)/sizeof(stats->dl.lc_bytes[0]))) {
       if (stats->dl.lc_bytes[lcid_direct] > 0) {
         output += snprintf(output, 

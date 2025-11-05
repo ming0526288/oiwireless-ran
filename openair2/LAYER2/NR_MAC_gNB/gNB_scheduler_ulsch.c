@@ -36,6 +36,9 @@
 #include <openair2/UTIL/OPT/opt.h>
 #include "LAYER2/nr_rlc/nr_rlc_oai_api.h"
 
+#include "openair2/SDAP/nr_sdap/nr_sdap.h"
+#include "common/utils/threadPool/notified_fifo.h"
+
 //#define SRS_IND_DEBUG
 
 /* \brief Get the number of UL TDAs that could be used in slot, reachable
@@ -503,7 +506,7 @@ static int nr_process_mac_pdu(instance_t module_idP,
         } else {
           UE->mac_stats.ul.lc_bytes[lcid] += mac_len;
 
-          nr_mac_rlc_data_ind(module_idP, UE->rnti, true, lcid, (char *)(pduP + mac_subheader_len), mac_len);
+          nr_mac_rlc_data_ind(module_idP, UE->rnti, true, lcid, (char *)(pduP + mac_subheader_len), mac_len); //
 
           sdus += 1;
           /* Updated estimated buffer when receiving data */
@@ -513,6 +516,28 @@ static int nr_process_mac_pdu(instance_t module_idP,
             sched_ctrl->estimated_ul_buffer = 0;
         }
         break;
+
+      // #define DIRECT_LCID  33   // 专用LCID，用于标识直传数据
+      // case DIRECT_LCID:
+      //   LOG_D(NR_MAC,
+      //         "[UE %04x] %d.%d : ULSCH -> Direct Data %d (gNB %ld, %d bytes)\n",
+      //         UE->rnti,
+      //         frameP,
+      //         slot,
+      //         lcid,
+      //         module_idP,
+      //         mac_len);
+      //   // 直接将数据传递给SDAP层进行处理
+      //   nr_sdap_handle_direct_data(UE, (char *)(pduP + mac_subheader_len), mac_len);
+
+      //   sdus += 1;
+      //   /* Updated estimated buffer when receiving data */
+      //   if (sched_ctrl->estimated_ul_buffer >= mac_len)
+      //     sched_ctrl->estimated_ul_buffer -= mac_len;
+      //   else
+      //     sched_ctrl->estimated_ul_buffer = 0;
+      //   break;
+
 
       case UL_SCH_LCID_RECOMMENDED_BITRATE_QUERY:
         // 38.321 Ch6.1.3.20

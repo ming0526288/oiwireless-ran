@@ -103,7 +103,7 @@ typedef struct pdusession_s {
   /* Unique pdusession_id for the UE. */
   int pdusession_id;
   byte_array_t nas_pdu;
-  uint8_t nb_qos;
+  uint8_t nb_qos; // nb代表数量
   /* Quality of service for this pdusession */
   pdusession_level_qos_parameter_t qos[QOSFLOW_MAX_VALUE];
   /* The transport layer address for the IP packets */

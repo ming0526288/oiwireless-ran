@@ -1508,34 +1508,34 @@ void nr_schedule_ue_spec(module_id_t module_id,
           break;
         }
 
-        uint8_t *p = (uint8_t *)NotifiedFifoData(elt);
+        uint8_t *q = (uint8_t *)NotifiedFifoData(elt);
         uint32_t dlen = 0;
-        memcpy(&dlen, p, sizeof(uint32_t));
-        uint8_t *pdata = p + sizeof(uint32_t);
+        memcpy(&dlen, q, sizeof(uint32_t));
+        uint8_t *qdata = q + sizeof(uint32_t);
 
         if(dlen == 0 || (tbs_size_t)dlen > room) {
           delNotifiedFIFO_elt(elt);
           break;
         }
 
-        log_dump(NR_MAC, pdata, dlen, LOG_DUMP_CHAR, "direct queue data to send\n");
+        log_dump(NR_MAC, qdata, dlen, LOG_DUMP_CHAR, "direct queue data to send\n");
 
-        #define DIRECT_LCID_UE  33   // 示例：请改成你实际已配置成功的 DTCH LCID
+        #define DIRECT_LCID  33   // 专用LCID，用于标识直传数据
 
         NR_MAC_SUBHEADER_LONG *header = (NR_MAC_SUBHEADER_LONG *) buf;
         header->R = 0;
         header->F = 1;
-        header->LCID = DIRECT_LCID_UE;  // 使用专用LCID标识直传数据
+        header->LCID = DIRECT_LCID;  // 使用专用LCID标识直传数据
         buf += sizeof(NR_MAC_SUBHEADER_LONG);
         header->L = htons(dlen);
 
-        memcpy(buf, pdata, dlen);
+        memcpy(buf, qdata, dlen);
         buf += dlen;
 
         dlsch_total_bytes += dlen;
         sdus +=1;
-        if(DIRECT_LCID_UE < (int)(sizeof(UE->mac_stats.dl.lc_bytes)/sizeof(UE->mac_stats.dl.lc_bytes[0])))
-          UE->mac_stats.dl.lc_bytes[DIRECT_LCID_UE] += dlen;
+        if(DIRECT_LCID < (int)(sizeof(UE->mac_stats.dl.lc_bytes)/sizeof(UE->mac_stats.dl.lc_bytes[0])))
+          UE->mac_stats.dl.lc_bytes[DIRECT_LCID] += dlen;
 
         LOG_I(NR_MAC,
               "%4d.%2d RNTI %04x: %d bytes from external source (DTCH) (remaining size %ld)\n",
