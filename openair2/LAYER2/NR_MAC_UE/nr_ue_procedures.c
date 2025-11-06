@@ -3954,9 +3954,9 @@ static void nr_ue_process_mac_pdu(NR_UE_MAC_INST_t *mac, nr_downlink_indication_
         written += len;
         }
 
-        LOG_I(NR_MAC,"[UE %d][%d.%d] DIRECT-LCID %d: deliver %u bytes to TUN/queue (bypass RLC)\n",
+        LOG_I(NR_MAC,"[UE %d][%d.%d] DL DIRECT-LCID %d: deliver %u bytes to TUN/queue (bypass RLC)\n",
         mac->ue_id, frameP, slot, rx_lcid, mac_len);
-        log_dump(NR_MAC, payload, plen, LOG_DUMP_CHAR, "DIRECT-LCID payload: \n");
+        log_dump(NR_MAC, payload, plen, LOG_DUMP_CHAR, "DL DIRECT-LCID payload: \n");
         break;
       default:
         LOG_W(MAC, "unknown lcid %02x\n", rx_lcid);

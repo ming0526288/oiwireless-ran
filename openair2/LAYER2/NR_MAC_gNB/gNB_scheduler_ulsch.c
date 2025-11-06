@@ -530,10 +530,10 @@ static int nr_process_mac_pdu(instance_t module_idP,
         
         char *payload = (char *)(pduP + mac_subheader_len);
         int plen = (int)mac_len;
-        LOG_I(NR_MAC,"[%d.%d] DIRECT-LCID %d: deliver %u bytes to TUN/queue (bypass RLC), pdu len %d, mac subheader len %d\n",
+        LOG_I(NR_MAC,"[%d.%d] UL DIRECT-LCID %d: deliver %u bytes to TUN/queue (bypass RLC), pdu len %d, mac subheader len %d\n",
         frameP, slot, lcid, mac_len, pdu_len, mac_subheader_len);
 
-        log_dump(NR_MAC, payload, plen, LOG_DUMP_CHAR, "DIRECT-LCID payload: \n");
+        log_dump(NR_MAC, payload, plen, LOG_DUMP_CHAR, "UL DIRECT-LCID payload: \n");
         UE->mac_stats.ul.lc_bytes[lcid] += mac_len;
         sdus += 1;
         /* Updated estimated buffer when receiving data */
@@ -570,7 +570,7 @@ static int nr_process_mac_pdu(instance_t module_idP,
       //         lcid,
       //         module_idP,
       //         mac_len);
-      //   // ֱ�ӽ����ݴ��ݸ�SDAP����д���
+      //   // ֱ�ӽ����ݴ��ݸ�SDAP����д���?
       //   nr_sdap_handle_direct_data(UE, (char *)(pduP + mac_subheader_len), mac_len);
 
       //   sdus += 1;
