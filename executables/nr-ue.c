@@ -1038,7 +1038,7 @@ void init_NR_UE_threads(PHY_VARS_NR_UE *UE) {
   pthread_t thread;
   char thread_name[16];
   sprintf(thread_name, "UEthread_%d", UE->Mod_id);
-  threadCreate(&thread, UE_thread, (void *)UE, thread_name, -1, OAI_PRIORITY_RT_MAX);
+  threadCreate(&thread, UE_thread, (void *)UE, thread_name, 4, OAI_PRIORITY_RT_MAX);
   if (!IS_SOFTMODEM_NOSTATS_BIT) {
     pthread_t stat_pthread;
     sprintf(thread_name, "L1_UE_stats_%d", UE->Mod_id);
