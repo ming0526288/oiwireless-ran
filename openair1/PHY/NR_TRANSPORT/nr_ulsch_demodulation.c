@@ -1257,7 +1257,10 @@ static uint8_t nr_ulsch_mmse_2layers(NR_DL_FRAME_PARMS *frame_parms,
   simde_m_empty();
    return(0);
 }
-
+static int amp_rnti_cnt[64]={0};
+static int amp_rnti_val[64]={0};
+static int amp_rnti_num = 0;
+static int amp_rnti_max = 64;
 static void inner_rx(PHY_VARS_gNB *gNB,
                      int ulsch_id,
                      int slot,
@@ -1300,17 +1303,30 @@ static void inner_rx(PHY_VARS_gNB *gNB,
 
       unsigned int pusch_amp;
       if (symbol == (rel15_ul->start_symbol_index + rel15_ul->nr_of_symbols - 1)) {
-        static int cnt = 0;
         //if (((cnt & 0x7F) == 0) || (cnt < 0x80))
         //if ( (cnt < 0x100))
-        if (((cnt & 0xFF) == 0) )
+        int i;
+        for ( i =0; i < amp_rnti_num; i++)
         {
-          pusch_amp = cal_amp(&rxFext[0][0], rel15_ul->rb_size * NR_NB_SC_PER_RB);
-          //LOG_I(PHY, "UL AMP frame %d %d, symbol %d, rbs %d, res %d, time %d, freq %d \n", frame, slot, symbol, nb_re_pusch/12, nb_re_pusch, g_ul_time_amp[symbol], g_ul_freq_amp[symbol], pusch_amp);
-          LOG_I(PHY, "UL AMP frame %d %d, symbols %d, rbs %d, mcs %d, pusch amp %d \n", 0, slot, rel15_ul->nr_of_symbols, rel15_ul->rb_size, rel15_ul->mcs_index, pusch_amp);
-
+          if (amp_rnti_val[i] == rel15_ul->rnti)
+             break;
         }
-        cnt++;
+
+        if (i < amp_rnti_max )
+        {
+            if (i == amp_rnti_num)
+            {
+              amp_rnti_num++;
+              amp_rnti_val[i] = rel15_ul->rnti;
+            }
+            if (((amp_rnti_cnt[i] & 0xFF) == 0) )
+            {
+              pusch_amp = cal_amp(&rxFext[0][0], rel15_ul->rb_size * NR_NB_SC_PER_RB);
+              //LOG_I(PHY, "UL AMP frame %d %d, symbol %d, rbs %d, res %d, time %d, freq %d \n", frame, slot, symbol, nb_re_pusch/12, nb_re_pusch, g_ul_time_amp[symbol], g_ul_freq_amp[symbol], pusch_amp);
+              LOG_I(PHY, "UL AMP frame %d %d, rnit %d (amp_rnti_cnt[%d] = %d), symbols %d, rbs %d, mcs %d, pusch amp %d \n", 0, slot, rel15_ul->rnti, i, amp_rnti_cnt[i], rel15_ul->nr_of_symbols, rel15_ul->rb_size, rel15_ul->mcs_index, pusch_amp);
+            }
+            amp_rnti_cnt[i]++;
+        }
       }
       
   c16_t rho[nb_layer][nb_layer][buffer_length] __attribute__((aligned(32)));

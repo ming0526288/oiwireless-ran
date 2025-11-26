@@ -660,6 +660,7 @@ typedef struct NR_mac_dir_stats {
   uint64_t rounds[8];
   uint64_t errors;
   uint64_t total_bytes;
+  uint64_t total_bytes_old;
   uint32_t current_bytes;
   uint64_t total_sdu_bytes;
   uint32_t total_rbs;
