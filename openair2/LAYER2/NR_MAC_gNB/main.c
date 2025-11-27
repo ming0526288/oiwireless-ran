@@ -47,6 +47,10 @@ extern RAN_CONTEXT_t RC;
 
 #define MACSTATSSTRLEN 36256
 
+extern int amp_rnti_val[];
+extern int amp_rnti_amp[];
+extern int amp_rnti_max;
+
 void *nrmac_stats_thread(void *arg) {
 
   gNB_MAC_INST *gNB = (gNB_MAC_INST *)arg;
@@ -210,6 +214,17 @@ size_t dump_mac_stats(gNB_MAC_INST *gNB, char *output, size_t strlen, bool reset
                          stats->dl.lc_bytes[c->lcid],
                          stats->ul.lc_bytes[c->lcid]);
     }
+
+    int ii;
+    for (ii =0; ii < amp_rnti_max; ii++)
+    {
+        if (amp_rnti_val[ii] == UE->rnti)
+             break;
+    } 
+    if (ii < amp_rnti_max )
+    {
+        LOG_I(PHY, "rnti %04x, UL AMP %d, rnti idx %d\n\n", UE->rnti, amp_rnti_amp[ii], ii);
+    } 
   }
   NR_SCHED_UNLOCK(&gNB->UE_info.mutex);
   return output - begin;

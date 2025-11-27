@@ -120,6 +120,10 @@ static const uint16_t cqi_table3[16][2] = {{0, 0},
                                            {6, 6660},
                                            {6, 7720}};
 
+extern int amp_rnti_val[];
+extern int amp_rnti_cnt[];
+extern int amp_rnti_max;                                           
+
 uint8_t get_dl_nrOfLayers(const NR_UE_sched_ctrl_t *sched_ctrl,
                           const nr_dci_format_t dci_format) {
 
@@ -2544,6 +2548,16 @@ NR_UE_info_t *add_new_nr_ue(gNB_MAC_INST *nr_mac, rnti_t rntiP, NR_CellGroupConf
 
   LOG_D(NR_MAC, "Add NR rnti %x\n", rntiP);
   dump_nr_list(UE_info->list);
+
+  for(int i = 0; i< amp_rnti_max; i++)
+  {
+     if (amp_rnti_val[i] == 0)
+     {
+         amp_rnti_val[i] = rntiP;
+         amp_rnti_cnt[0] = 0;
+         break;
+     }
+  }
   return (UE);
 }
 
@@ -2675,6 +2689,16 @@ void mac_remove_nr_ue(gNB_MAC_INST *nr_mac, rnti_t rnti)
   NR_SCHED_UNLOCK(&UE_info->mutex);
 
   delete_nr_ue_data(UE, nr_mac->common_channels, &UE_info->uid_allocator);
+
+  for(int i = 0; i< amp_rnti_max; i++)
+  {
+     if (amp_rnti_val[i] == rnti)
+     {
+         amp_rnti_val[i] = 0;
+         amp_rnti_cnt[0] = 0;
+         break;
+     }
+  }
 }
 
 // all values passed to this function are in dB x10

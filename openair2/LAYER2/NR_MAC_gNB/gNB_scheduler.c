@@ -238,7 +238,7 @@ void gNB_dlsch_ulsch_scheduler(module_id_t module_idP, frame_t frame, sub_frame_
     clear_nr_nfapi_information(gNB, CC_id, frame, slot, &sched_info->DL_req, &sched_info->TX_req, &sched_info->UL_dci_req);
   }
 
-  if ((slot == 0) && (frame & 127) == 0) {
+  if ((slot == 0) && (frame & 255) == 0) {
     char stats_output[32656] = {0};
     dump_mac_stats(gNB, stats_output, sizeof(stats_output), true);
     LOG_I(NR_MAC, "Frame.Slot %d.%d\n%s\n", frame, slot, stats_output);
