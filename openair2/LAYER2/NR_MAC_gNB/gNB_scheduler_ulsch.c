@@ -1761,9 +1761,17 @@ static void pf_ul(module_id_t module_id,
   UEsched_t UE_sched[MAX_MOBILES_PER_GNB] = {0};
   int remainUEs = max_num_ue;
   int curUE=0;
+  int cnt  = 0;
+
 
   /* Loop UE_list to calculate throughput and coeff */
   UE_iterator(UE_list, UE) {
+
+    //if (cnt == 2)
+    //{
+    //  LOG_I(PHY, " ~~~~~~~~~~~  curUE is 2\n");
+    //}
+    cnt++;
 
     NR_UE_sched_ctrl_t *sched_ctrl = &UE->UE_sched_ctrl;
     if (UE->Msg4_ACKed != true || sched_ctrl->ul_failure)
@@ -1820,22 +1828,30 @@ static void pf_ul(module_id_t module_id,
 
     const int B = max(0, sched_ctrl->estimated_ul_buffer - sched_ctrl->sched_ul_bytes);
     /* preprocessor computed sched_frame/sched_slot */
-    const bool do_sched = nr_UE_is_to_be_scheduled(scc, 0, UE, sched_pusch->frame, sched_pusch->slot, nrmac->ulsch_max_frame_inactivity);
-
-    LOG_D(NR_MAC,"pf_ul: do_sched UE %04x => %s\n",UE->rnti,do_sched ? "yes" : "no");
+    bool do_sched = nr_UE_is_to_be_scheduled(scc, 0, UE, sched_pusch->frame, sched_pusch->slot, nrmac->ulsch_max_frame_inactivity);
+    //const bool do_sched = true;
+    if (cnt == 1)
+        do_sched = true;
+     LOG_D(NR_MAC,"pf_ul: do_sched UE %04x => %s\n",UE->rnti,do_sched ? "yes" : "no");
     if ((B == 0 && !do_sched) || (sched_ctrl->rrc_processing_timer > 0)) {
       continue;
     }
 
     const NR_bler_options_t *bo = &nrmac->ul_bler;
     const int max_mcs_table = (current_BWP->mcs_table == 0 || current_BWP->mcs_table == 2) ? 28 : 27;
-    const int max_mcs = min(bo->max_mcs, max_mcs_table); /* no per-user maximum MCS yet */
+    int max_mcs = min(bo->max_mcs, max_mcs_table); /* no per-user maximum MCS yet */
+    
+    if (cnt == 1)
+    {
+        max_mcs = 9;
+    }
     if (bo->harq_round_max == 1)
       sched_pusch->mcs = max_mcs;
     else {
       sched_pusch->mcs = get_mcs_from_bler(bo, stats, &sched_ctrl->ul_bler_stats, max_mcs, frame);
       LOG_D(NR_MAC,"%d.%d starting mcs %d bleri %f\n",frame,slot,sched_pusch->mcs,sched_ctrl->ul_bler_stats.bler);
     }
+    //sched_pusch->mcs = 9; 
     /* Schedule UE on SR or UL inactivity and no data (otherwise, will be scheduled
      * based on data to transmit) */
     if (B == 0 && do_sched) {
@@ -1849,7 +1865,8 @@ static void pf_ul(module_id_t module_id,
                                    &sched_ctrl->sched_pdcch,
                                    false);
       if (CCEIndex<0) {
-        LOG_D(NR_MAC, "[UE %04x][%4d.%2d] no free CCE for UL DCI (BSR 0)\n",
+        if (!(((frame%2) == 0) && ((slot == 1) || (slot == 33))))
+        LOG_I(NR_MAC, "[UE %04x][%4d.%2d] no free CCE for UL DCI (BSR 0)\n",
               UE->rnti,
               frame,
               slot);
@@ -1875,7 +1892,7 @@ static void pf_ul(module_id_t module_id,
       while (rbStart < bwpSize && (rballoc_mask[rbStart] & slbitmap) != slbitmap)
         rbStart++;
       if (rbStart + min_rb >= bwpSize) {
-        LOG_D(NR_MAC, "[UE %04x][%4d.%2d] could not allocate continuous UL data: no resources (rbStart %d, min_rb %d, bwpSize %d)\n",
+        LOG_I(NR_MAC, "[UE %04x][%4d.%2d] could not allocate continuous UL data: no resources (rbStart %d, min_rb %d, bwpSize %d)\n",
               UE->rnti,
               frame,
               slot,
@@ -1915,7 +1932,8 @@ static void pf_ul(module_id_t module_id,
                                                         sched_pusch->dmrs_info.N_PRB_DMRS * sched_pusch->dmrs_info.num_dmrs_symb,
                                                         deltaMCS,
                                                         false);
-      LOG_D(NR_MAC,
+      if (sched_pusch->mcs != 9)
+      LOG_I(NR_MAC,
             "pf_ul %d.%d UE %x Scheduling PUSCH (no data) nrb %d mcs %d tbs %d bits phr_txpower %d\n",
             frame,
             slot,
@@ -1967,7 +1985,8 @@ static void pf_ul(module_id_t module_id,
                                  false);
 
     if (CCEIndex<0) {
-      LOG_D(NR_MAC, "[UE %04x][%4d.%2d] no free CCE for UL DCI\n",
+      //if (!(((frame%2) == 0) && ((slot == 1) || (slot == 33))))
+      LOG_I(NR_MAC, "[UE %04x][%4d.%2d] no free CCE for UL DCI\n",
             iterator->UE->rnti,
             frame,
             slot);
@@ -2004,7 +2023,7 @@ static void pf_ul(module_id_t module_id,
       max_rbSize++;
 
     if (rbStart + min_rb >= bwpSize || max_rbSize < min_rb) {
-      LOG_D(NR_MAC, "[UE %04x][%4d.%2d] could not allocate UL data: no resources (rbStart %d, min_rb %d, bwpSize %d)\n",
+      LOG_I(NR_MAC, "[UE %04x][%4d.%2d] could not allocate UL data: no resources (rbStart %d, min_rb %d, bwpSize %d)\n",
             iterator->UE->rnti,
             frame,
             slot,
@@ -2056,9 +2075,9 @@ static void pf_ul(module_id_t module_id,
 
     sched_pusch->rbSize = rbSize;
     sched_pusch->tb_size = TBS;
-    LOG_D(NR_MAC,"rbSize %d (max_rbSize %d), TBS %d, est buf %d, sched_ul %d, B %d, CCE %d, num_dmrs_symb %d, N_PRB_DMRS %d\n",
-          rbSize, max_rbSize,sched_pusch->tb_size, sched_ctrl->estimated_ul_buffer, sched_ctrl->sched_ul_bytes, B,
-          sched_ctrl->cce_index,sched_pusch->dmrs_info.num_dmrs_symb,sched_pusch->dmrs_info.N_PRB_DMRS);
+    //LOG_I(NR_MAC,"frame %d, %d, rnti %x, rbSize %d (max_rbSize %d), mcs %d, TBS %d, est buf %d, sched_ul %d, B %d, CCE %d, num_dmrs_symb %d, N_PRB_DMRS %d\n",frame, slot,UE->rnti,
+    //      rbSize, max_rbSize,sched_pusch->mcs,sched_pusch->tb_size, sched_ctrl->estimated_ul_buffer, sched_ctrl->sched_ul_bytes, B,
+    //      sched_ctrl->cce_index,sched_pusch->dmrs_info.num_dmrs_symb,sched_pusch->dmrs_info.N_PRB_DMRS);
 
     /* Mark the corresponding RBs as used */
 
