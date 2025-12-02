@@ -339,8 +339,8 @@ static void *sdap_direct_tun_read_thread(void *arg)
     LOG_I(SDAP, "[SDAP-TUN] UE ID=%" PRIu64 " PDU Session=%d len=%d\n",
       (uint64_t)entity->ue_id, entity->pdusession_id, len);
 
-    const char *ue_ip = find_ue_ip_by_rnti((uint16_t)entity->pdusession_id);
-    LOG_I(SDAP, "[SDAP-TUN] UE IP=%s\n", ue_ip);
+    // const char *ue_ip = find_ue_ip_by_rnti((uint16_t)entity->pdusession_id);
+    // LOG_I(SDAP, "[SDAP-TUN] UE IP=%s\n", ue_ip);
 
 
     LOG_I(SDAP, "[SDAP-TUN] read data of size %d (push=%lu pop=%lu)\n",
@@ -397,7 +397,7 @@ void start_direct_sdap_tun_gnb_first_ue_default_pdu_session(ue_id_t ue_id)
   DevAssert(entity->is_gnb);//启动基站侧的虚拟网卡
   char *ifprefix = get_softmodem_params()->nsa ? "oaitun_gnb" : "oaitun_enb";
   char ifname[IFNAMSIZ];
-  tun_generate_ifname(ifname, ifprefix, ue_id - 1);
+  tun_generate_ifname(ifname, ifprefix, 0);
   entity->pdusession_sock = tun_alloc(ifname);
   tun_config(ifname, "192.169.0.1", NULL);
   threadCreate(&entity->pdusession_thread, sdap_direct_tun_read_thread, entity, "gnb_tun_read_thread", -1, OAI_PRIORITY_RT_LOW);
@@ -406,7 +406,7 @@ void start_direct_sdap_tun_gnb_first_ue_default_pdu_session(ue_id_t ue_id)
 void start_sdap_tun_ue(ue_id_t ue_id, int pdu_session_id, int sock)
 {
   ipq_ue_init_once();  //队列初始化（仅执行一次）
-  maybe_start_ue_ipq_consumer();//启动消费者线程（只启动一次），进行测试打印队列内容
+  //maybe_start_ue_ipq_consumer();//启动消费者线程（只启动一次），进行测试打印队列内容
   nr_sdap_entity_t *entity = nr_sdap_get_entity(ue_id, pdu_session_id);
   DevAssert(entity != NULL);
   DevAssert(!entity->is_gnb);//UE侧的

@@ -40,6 +40,10 @@
 /* RRC*/
 #include "RRC/NR_UE/L2_interface_ue.h"
 
+/* SDAP TUN*/
+#include "openair2/SDAP/nr_sdap/nr_sdap_entity.h"
+#include "openair2/SDAP/nr_sdap/nr_sdap.h"
+
 /* MAC */
 #include "NR_MAC_COMMON/nr_mac.h"
 #include "NR_MAC_UE/mac_proto.h"
@@ -3906,17 +3910,53 @@ static void nr_ue_process_mac_pdu(NR_UE_MAC_INST_t *mac, nr_downlink_indication_
           LOG_W(NR_MAC, "Received PDU for a suspended RB, corresponding to LCID %d. Dropping it.\n", rx_lcid);
           break;
         }
-
-        #define DIRECT_LCID_UE  5
-
-        if (rx_lcid == DIRECT_LCID_UE) {
-          LOG_I(NR_MAC,"[UE %d][%d.%d] DIRECT-LCID %d: deliver %u bytes to TUN/queue (bypass RLC)\n",
-          mac->ue_id, frameP, slot, rx_lcid, mac_len);
-
-          break;
-        }
         LOG_D(NR_MAC, "%4d.%2d : DLSCH -> LCID %d %d bytes\n", frameP, slot, rx_lcid, mac_len);
         nr_mac_rlc_data_ind(mac->ue_id, mac->ue_id, false, rx_lcid, (char *)(pduP + mac_subheader_len), mac_len);
+        break;
+      case 33:
+        if (!get_mac_len(pduP, pdu_len, &mac_len, &mac_subheader_len))
+          return;
+        // // discard the received subPDU if RB is suspended
+        // if (is_lcid_suspended(mac, rx_lcid)) {
+        //   LOG_W(NR_MAC, "Received PDU for a suspended RB, corresponding to LCID %d. Dropping it.\n", rx_lcid);
+        //   break;
+        // }
+        
+        char *payload = (char *)(pduP + mac_subheader_len);
+        int plen = (int)mac_len;
+
+        int pdusession_id = get_softmodem_params()->default_pdu_session_id;
+        nr_sdap_entity_t *entity = nr_sdap_get_entity(mac->ue_id, pdusession_id);
+        if(!entity){
+          LOG_I(NR_MAC, "SDAP entity for PDU session %d\n", pdusession_id);
+          break;
+        }
+        
+        // rb_id_t fake_drb = 1; // 占位
+        // entity->rx_entity(entity, 
+        //                   fake_drb, 
+        //                   0,
+        //                   false,
+        //                   pdusession_id,
+        //                   mac->ue_id,
+        //                   payload, 
+        //                   plen);
+        // 使用 write() 直接写入 TUN 设备
+        int written = 0;
+        int offset = 0;
+        while (offset < plen) {
+          int len = write(entity->pdusession_sock, payload + offset, plen - offset);
+          if (len < 0) {
+            LOG_E(NR_MAC, "Write to TUN/socket failed: %s\n", strerror(errno));
+            break;
+          }
+        offset += len;
+        written += len;
+        }
+
+        LOG_I(NR_MAC,"[UE %d][%d.%d] DL DIRECT-LCID %d: deliver %u bytes to TUN/queue (bypass RLC)\n",
+        mac->ue_id, frameP, slot, rx_lcid, mac_len);
+        log_dump(NR_MAC, payload, plen, LOG_DUMP_CHAR, "DL DIRECT-LCID payload: \n");
         break;
       default:
         LOG_W(MAC, "unknown lcid %02x\n", rx_lcid);

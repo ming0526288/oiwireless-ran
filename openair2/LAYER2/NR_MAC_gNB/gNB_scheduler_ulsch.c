@@ -36,6 +36,12 @@
 #include <openair2/UTIL/OPT/opt.h>
 #include "LAYER2/nr_rlc/nr_rlc_oai_api.h"
 
+#include "openair2/SDAP/nr_sdap/nr_sdap.h"
+#include "common/utils/threadPool/notified_fifo.h"
+/* SDAP TUN*/
+#include "openair2/SDAP/nr_sdap/nr_sdap_entity.h"
+
+
 //#define SRS_IND_DEBUG
 
 /* \brief Get the number of UL TDAs that could be used in slot, reachable
@@ -295,6 +301,7 @@ uint8_t decode_ul_mac_sub_pdu_header(uint8_t *pduP, uint8_t *lcid, uint16_t *len
     case UL_SCH_LCID_SRB1:
     case UL_SCH_LCID_SRB2:
     case UL_SCH_LCID_DTCH ...(UL_SCH_LCID_DTCH + 28):
+    case UL_SCH_LCID_DIRECT:
     case UL_SCH_LCID_L_TRUNCATED_BSR:
     case UL_SCH_LCID_L_BSR:
       if (pduP[0] & 0x40) { // F = 1
@@ -367,7 +374,7 @@ static rnti_t lcid_crnti_lookahead(uint8_t *pdu, uint32_t pdu_len)
   }
   return 0;
 }
-
+extern ue_id_t g_ueid_for_direct;
 static int nr_process_mac_pdu(instance_t module_idP,
                               NR_UE_info_t *UE,
                               uint8_t CC_id,
@@ -503,7 +510,7 @@ static int nr_process_mac_pdu(instance_t module_idP,
         } else {
           UE->mac_stats.ul.lc_bytes[lcid] += mac_len;
 
-          nr_mac_rlc_data_ind(module_idP, UE->rnti, true, lcid, (char *)(pduP + mac_subheader_len), mac_len);
+          nr_mac_rlc_data_ind(module_idP, UE->rnti, true, lcid, (char *)(pduP + mac_subheader_len), mac_len); //
 
           sdus += 1;
           /* Updated estimated buffer when receiving data */
@@ -513,6 +520,67 @@ static int nr_process_mac_pdu(instance_t module_idP,
             sched_ctrl->estimated_ul_buffer = 0;
         }
         break;
+
+      case 33:
+        // // discard the received subPDU if RB is suspended
+        // if (is_lcid_suspended(mac, rx_lcid)) {
+        //   LOG_W(NR_MAC, "Received PDU for a suspended RB, corresponding to LCID %d. Dropping it.\n", rx_lcid);
+        //   break;
+        // }
+        
+        char *payload = (char *)(pduP + mac_subheader_len);
+        int plen = (int)mac_len;
+        LOG_I(NR_MAC,"[%d.%d] UL DIRECT-LCID %d: deliver %u bytes to TUN/queue (bypass RLC), pdu len %d, mac subheader len %d\n",
+        frameP, slot, lcid, mac_len, pdu_len, mac_subheader_len);
+
+        log_dump(NR_MAC, payload, plen, LOG_DUMP_CHAR, "UL DIRECT-LCID payload: \n");
+        UE->mac_stats.ul.lc_bytes[lcid] += mac_len;
+        sdus += 1;
+        /* Updated estimated buffer when receiving data */
+         if (sched_ctrl->estimated_ul_buffer >= mac_len)
+           sched_ctrl->estimated_ul_buffer -= mac_len;
+         else
+           sched_ctrl->estimated_ul_buffer = 0;
+        
+        int pdusession_id = get_softmodem_params()->default_pdu_session_id;
+        nr_sdap_entity_t *entity = nr_sdap_get_entity(g_ueid_for_direct, pdusession_id);
+        if(!entity){
+          LOG_I(NR_MAC, "SDAP entity for PDU session %d\n", pdusession_id);
+          break;
+        }
+                int written = 0;
+        int offset = 0;
+        while (offset < plen) {
+          int len = write(entity->pdusession_sock, payload + offset, plen - offset);
+          if (len < 0) {
+            LOG_E(NR_MAC, "Write to TUN/socket failed: %s\n", strerror(errno));
+            break;
+          }
+        offset += len;
+        written += len;
+        }
+
+      // #define DIRECT_LCID  33   // ר��LCID�����ڱ�ʶֱ������
+      // case DIRECT_LCID:
+      //   LOG_D(NR_MAC,
+      //         "[UE %04x] %d.%d : ULSCH -> Direct Data %d (gNB %ld, %d bytes)\n",
+      //         UE->rnti,
+      //         frameP,
+      //         slot,
+      //         lcid,
+      //         module_idP,
+      //         mac_len);
+      //   // ֱ�ӽ����ݴ��ݸ�SDAP����д���?
+      //   nr_sdap_handle_direct_data(UE, (char *)(pduP + mac_subheader_len), mac_len);
+
+      //   sdus += 1;
+      //   /* Updated estimated buffer when receiving data */
+      //   if (sched_ctrl->estimated_ul_buffer >= mac_len)
+      //     sched_ctrl->estimated_ul_buffer -= mac_len;
+      //   else
+      //     sched_ctrl->estimated_ul_buffer = 0;
+         break;
+      
 
       case UL_SCH_LCID_RECOMMENDED_BITRATE_QUERY:
         // 38.321 Ch6.1.3.20
@@ -2039,12 +2107,12 @@ static int  pf_ul(gNB_MAC_INST *nrmac,
 
     const int B = max(0, sched_ctrl->estimated_ul_buffer - sched_ctrl->sched_ul_bytes);
     /* preprocessor computed sched_frame/sched_slot */
-    const bool do_sched = nr_UE_is_to_be_scheduled(&nrmac->frame_structure,
-                                                   UE,
-                                                   sched_frame,
-                                                   sched_slot,
-                                                   nrmac->ulsch_max_frame_inactivity);
-
+    //const bool do_sched = nr_UE_is_to_be_scheduled(&nrmac->frame_structure,
+     //                                              UE,
+     //                                              sched_frame,
+     //                                              sched_slot,
+     //                                              nrmac->ulsch_max_frame_inactivity);
+    const bool do_sched = true;
     LOG_D(NR_MAC,"pf_ul: do_sched UE %04x => %s\n", UE->rnti, do_sched ? "yes" : "no");
     if ((B == 0 && !do_sched) || nr_timer_is_active(&sched_ctrl->transm_interrupt)) {
       reset_beam_status(&nrmac->beam_info, sched_frame, sched_slot, UE->UE_beam_index, slots_per_frame, beam.new_beam);
