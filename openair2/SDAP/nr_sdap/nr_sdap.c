@@ -399,7 +399,7 @@ void start_direct_sdap_tun_gnb_first_ue_default_pdu_session(ue_id_t ue_id)
   char ifname[IFNAMSIZ];
   tun_generate_ifname(ifname, ifprefix, 0);
   entity->pdusession_sock = tun_alloc(ifname);
-  tun_config(ifname, "192.169.0.1", NULL);
+  tun_config(ifname, "192.169.0.99", NULL);
   threadCreate(&entity->pdusession_thread, sdap_direct_tun_read_thread, entity, "gnb_tun_read_thread", -1, OAI_PRIORITY_RT_LOW);
 }
 
