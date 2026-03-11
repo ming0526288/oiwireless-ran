@@ -1,0 +1,8 @@
+{
+    "github.copilot.enable": {
+        "*": true
+    },
+    "github.copilot.chat.defaultChatModel": "claude-opus-4-5",
+    "github.copilot.selectedCompletionModel": "claude-opus-4-5",
+    "chat.models.enabled": true
+}

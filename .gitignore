@@ -9,7 +9,11 @@ log/
 lte_build_oai/
 
 # IDE files
-.vscode
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
 .cproject
 .project
 .settings
